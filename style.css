@@ -237,20 +237,18 @@ body {
     background: linear-gradient(to top, #9b59b6, #be90d4);
 }
 
-/* 炸弹 */
-#bomb {
+/* 通用炸弹样式 */
+.bomb {
     position: absolute;
-    top: 200px;
-    left: 0;
     width: 40px;
     height: 40px;
     background: red;
     border-radius: 50%;
     border: 3px solid black;
     box-shadow: 0 0 10px red;
-    animation: moveBomb 8s linear infinite alternate;
+    /* top 和 left/animation 将由 JS 控制 */
 }
-#bomb::before { /* 引线 */
+.bomb::before { /* 引线 */
     content: '';
     position: absolute;
     width: 10px;
@@ -258,11 +256,6 @@ body {
     background: #333;
     top: -5px;
     left: 15px;
-}
-
-@keyframes moveBomb {
-    from { left: 10px; }
-    to { left: calc(100% - 50px); }
 }
 
 

@@ -6,8 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const claw = document.getElementById('claw');
     const joystickHandle = document.getElementById('joystick-handle');
     const joystickBase = document.querySelector('.joystick-base');
-    const bomb = document.getElementById('bomb');
-    
+    const bombContainer = document.getElementById('bomb-container');
+
     const timerDisplay = document.getElementById('timer');
     const scoreDisplay = document.getElementById('score');
     const livesDisplay = document.getElementById('lives');
@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let timerInterval;
 
     let dolls = [];
+    let bombs = [];
     let caughtDoll = null;
 
     // --- 游戏参数配置 ---
@@ -85,8 +86,17 @@ document.addEventListener('DOMContentLoaded', () => {
         dolls = [];
         clearInterval(timerInterval);
 
+        // 清除旧的炸弹和动画规则
+        bombContainer.innerHTML = '';
+        bombs = [];
+        // 注意：动态添加的@keyframes规则理论上也应清除，但对于这个游戏体量，不清除也无大碍。
+        // 如果追求完美，需要更复杂的样式表管理，暂时简化。
+
         // 创建玩偶
         createDolls();
+
+        // 创建初始炸弹
+        createBomb();
         
         // 重置抓钩位置
         clawAssembly.style.left = `calc(50% - ${CLAW_ASSEMBLY_WIDTH / 2}px)`;
@@ -107,37 +117,81 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createDolls() {
-    const dollTypes = [
-        // 增加了 size 属性 (基础大小为1.0)
-        { class: 'green', weight: 1.0, value: 80,  size: 0.9 },
-        { class: 'purple', weight: 1.8, value: 200, size: 1.2 },
-        { class: 'green', weight: 1.2, value: 100, size: 1.0 },
-        { class: 'purple', weight: 2.0, value: 250, size: 1.3 },
-        { class: 'green', weight: 1.5, value: 150, size: 1.1 },
-    ];
+        const dollTypes = [
+            // 增加了 size 属性 (基础大小为1.0)
+            { class: 'green', weight: 1.0, value: 80,  size: 0.9 },
+            { class: 'purple', weight: 1.8, value: 200, size: 1.2 },
+            { class: 'green', weight: 1.2, value: 100, size: 1.0 },
+            { class: 'purple', weight: 2.0, value: 250, size: 1.3 },
+            { class: 'green', weight: 1.5, value: 150, size: 1.1 },
+        ];
 
-    dollTypes.forEach((type, index) => {
-        const dollEl = document.createElement('div');
-        dollEl.classList.add('doll', type.class);
+        dollTypes.forEach((type, index) => {
+            const dollEl = document.createElement('div');
+            dollEl.classList.add('doll', type.class);
 
-        // 根据 size 属性动态设置玩偶大小
-        const baseWidth = 50; // px
-        const baseHeight = 70; // px
-        dollEl.style.width = `${baseWidth * type.size}px`;
-        dollEl.style.height = `${baseHeight * type.size}px`;
+            // 根据 size 属性动态设置玩偶大小
+            const baseWidth = 50; // px
+            const baseHeight = 70; // px
+            dollEl.style.width = `${baseWidth * type.size}px`;
+            dollEl.style.height = `${baseHeight * type.size}px`;
 
-        // 为了避免大玩偶重叠，稍微调整间距
-        const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5));
-        dollEl.style.left = `${xPos}px`;
-        
-        playArea.appendChild(dollEl);
-        
-        dolls.push({
-            element: dollEl,
-            weight: type.weight,
-            value: type.value,
-            isCaught: false
+            // 为了避免大玩偶重叠，稍微调整间距
+            const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5));
+            dollEl.style.left = `${xPos}px`;
+            
+            playArea.appendChild(dollEl);
+            
+            dolls.push({
+                element: dollEl,
+                weight: type.weight,
+                value: type.value,
+                isCaught: false
+            });
         });
+    }
+
+    function createBomb() {
+    const bombEl = document.createElement('div');
+    bombEl.classList.add('bomb');
+
+    // 随机设置炸弹的垂直位置
+    const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300); // 在一定范围内随机
+    bombEl.style.top = `${randomTop}px`;
+
+    // 随机决定炸弹的移动方向和速度
+    const animationDuration = 6 + Math.random() * 4; // 6-10秒
+    const animationName = `moveBomb_${Date.now()}`; // 创建一个唯一的动画名
+    const direction = Math.random() < 0.5 ? 'left-to-right' : 'right-to-left';
+
+    let keyframes;
+    if (direction === 'left-to-right') {
+        bombEl.style.left = `10px`;
+        keyframes = `
+            @keyframes ${animationName} {
+                from { left: 10px; }
+                to { left: calc(100% - 50px); }
+            }`;
+    } else {
+        bombEl.style.left = `calc(100% - 50px)`;
+        keyframes = `
+            @keyframes ${animationName} {
+                from { left: calc(100% - 50px); }
+                to { left: 10px; }
+            }`;
+    }
+
+    // 动态创建并插入 keyframes 动画
+    const styleSheet = document.styleSheets[document.styleSheets.length - 1];
+    styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
+    
+    // 应用动画
+    bombEl.style.animation = `${animationName} ${animationDuration}s linear infinite alternate`;
+    
+    bombContainer.appendChild(bombEl);
+    
+    bombs.push({
+        element: bombEl
     });
 }
 
@@ -216,6 +270,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     caughtDoll.element.remove(); // 移除娃娃
                     dolls = dolls.filter(d => d !== caughtDoll);
                     caughtDoll = null;
+
+                    createBomb(); // 抓取成功，生成一个新炸弹
                 }
                 gameState = 'ready';
                 claw.classList.remove('grabbing');
@@ -232,11 +288,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkCollisions() {
         const clawRect = claw.getBoundingClientRect();
 
-        // 1. 与炸弹的碰撞
-        const bombRect = bomb.getBoundingClientRect();
-        if (isColliding(clawRect, bombRect)) {
-            loseLife();
-            return; // 发生碰撞后立即返回，避免重复处理
+        // 1. 与所有炸弹的碰撞
+        for (const bomb of bombs) {
+            const bombRect = bomb.element.getBoundingClientRect();
+            if (isColliding(clawRect, bombRect)) {
+                loseLife();
+                return; // 发生碰撞后立即返回
+            }
         }
 
         // 2. 与玩偶的碰撞 (只在下降时检测)
