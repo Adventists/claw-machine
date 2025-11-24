@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eggie Claw 复刻版</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- 游戏状态UI -->
+        <div id="ui-panel">
+            <div id="timer">时间: 60</div>
+            <div id="score">金钱: $0</div>
+            <div id="lives">生命: ♥ ♥ ♥</div>
+        </div>
+
+        <!-- 游戏机主体 -->
+        <div id="machine">
+            <div class="machine-top">
+                <div class="logo">Eggie Claw</div>
+                <div class="decoration"></div>
+            </div>
+            
+            <div id="play-area">
+                <!-- 抓钩组件 -->
+                <div id="claw-assembly">
+                    <div id="claw">
+                        <div class="claw-arm left"></div>
+                        <div class="claw-arm right"></div>
+                    </div>
+                </div>
+
+                <!-- 游戏元素 -->
+                <div id="bomb"></div>
+
+                <!-- 玩偶会被JS动态添加 -->
+
+            </div>
+
+            <div class="machine-bottom">
+                <div class="joystick-base">
+                    <div id="joystick-handle"></div>
+                </div>
+                <div class="drop-button"></div>
+            </div>
+        </div>
+        
+        <!-- 游戏结束/提示画面 -->
+        <div id="message-overlay" class="hidden">
+            <div id="message-text">游戏结束!</div>
+            <p>按 ESC 重新开始</p>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
