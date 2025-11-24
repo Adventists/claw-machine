@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let bombs = [];
     let caughtDoll = null;
     let isInvincible = false;
+    let isBoosting = false; // 跟踪是否正在加速
+    let lastFrameTime = performance.now(); // 用于计算帧时间差
 
     // --- 游戏参数配置 ---
     const CLAW_SPEED_DROP = 5;
@@ -35,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const PLAY_AREA_HEIGHT = playArea.offsetHeight;
     const CLAW_ASSEMBLY_WIDTH = clawAssembly.offsetWidth;
     const BOMB_MOVE_SPEED = 2; // (CSS动画已处理，这里用于碰撞检测)
+    const BOOST_COST_PER_SECOND = 50; // 加速每秒消耗50金钱
+    const BOOST_SPEED_MULTIPLIER = 2.0; // 加速时速度变为原来的2倍
 
     // --- 摇杆控制 ---
     let isDragging = false;
@@ -202,24 +206,31 @@ document.addEventListener('DOMContentLoaded', () => {
         livesDisplay.textContent = '生命: ' + '♥ '.repeat(lives);
     }
     
-    // --- 按键控制 ---
     // --- 交互控制 ---
-    // 1. 按钮点击
-    dropButton.addEventListener('click', () => {
+    // 1. 按钮交互
+    dropButton.addEventListener('mousedown', () => {
         if (gameState === 'ready') {
             dropClaw();
+        } else if (gameState === 'retracting' || gameState === 'caught') {
+            isBoosting = true;
         }
     });
 
-    // 2. 键盘快捷键 (保留ESC重置，移除空格)
+    document.addEventListener('mouseup', () => {
+        // 抬起鼠标时，无论在何处，都应停止加速
+        isBoosting = false;
+    });
+    // 鼠标移出按钮也应停止加速
+    dropButton.addEventListener('mouseleave', () => {
+        isBoosting = false;
+    });
+
+
+    // 2. 键盘快捷键 (ESC重置)
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Escape') {
             initGame();
         }
-        // 我们把空格键的功能移除了，如果你想保留它作为备用，可以取消下面这几行的注释
-        // if (e.code === 'Space' && gameState === 'ready') {
-        //     dropClaw();
-        // }
     });
 
     function dropClaw() {
@@ -227,15 +238,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 游戏循环 (关键) ---
-    function gameLoop() {
+    function gameLoop(currentTime) {
+        // 计算自上一帧以来经过的时间（以秒为单位）
+        const deltaTime = (currentTime - lastFrameTime) / 1000;
+        lastFrameTime = currentTime;
+
         if (gameState === 'dropping') {
             let currentBottom = parseFloat(claw.style.bottom);
             claw.style.bottom = `${currentBottom - CLAW_SPEED_DROP / 10}%`;
 
-            // 碰撞检测
             checkCollisions();
 
-            // 如果到底了
             if (parseFloat(claw.style.bottom) <= 5) {
                 claw.style.bottom = '5%';
                 gameState = 'retracting';
@@ -245,42 +258,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (gameState === 'retracting' || gameState === 'caught') {
             let retractSpeed = CLAW_SPEED_RETRACT_EMPTY;
             if (gameState === 'caught' && caughtDoll) {
-                // 重量影响速度
                 retractSpeed = CLAW_SPEED_RETRACT_BASE / caughtDoll.weight;
             }
+
+            // --- 加速逻辑 ---
+            if (isBoosting && score > 0) {
+                retractSpeed *= BOOST_SPEED_MULTIPLIER;
+                
+                // 根据时间差来扣钱，更精确
+                const cost = BOOST_COST_PER_SECOND * deltaTime;
+                score = Math.max(0, score - cost);
+                
+                // 实时更新UI，但可以稍微节流以避免性能问题
+                // 这里为了简单，直接更新
+                scoreDisplay.textContent = `金钱: $${Math.floor(score)}`;
+            }
+            // --- 加速逻辑结束 ---
 
             let currentBottom = parseFloat(claw.style.bottom);
             claw.style.bottom = `${currentBottom + retractSpeed / 10}%`;
             
-            // 如果抓着娃娃，让娃娃跟着爪子移动
             if (caughtDoll) {
                 const clawRect = claw.getBoundingClientRect();
                 const playAreaRect = playArea.getBoundingClientRect();
                 caughtDoll.element.style.top = `${clawRect.bottom - playAreaRect.top - 20}px`;
             }
 
-            // 碰撞检测
             checkCollisions();
 
-            // 如果回到顶部
             if (parseFloat(claw.style.bottom) >= 90) {
                 claw.style.bottom = '90%';
                 if (gameState === 'caught' && caughtDoll) {
-                    // 成功抓取
                     score += caughtDoll.value;
-                    caughtDoll.element.remove(); // 移除娃娃
+                    caughtDoll.element.remove();
                     dolls = dolls.filter(d => d !== caughtDoll);
                     caughtDoll = null;
-
-                    createBomb(); // 抓取成功，生成一个新炸弹
+                    createBomb();
                 }
                 gameState = 'ready';
                 claw.classList.remove('grabbing');
-                updateUI();
+                isBoosting = false; // 重置加速状态
+                updateUI(); // 最终更新一次UI
             }
         }
         
-        // 只要游戏没结束就一直循环
         if (gameState !== 'over') {
             requestAnimationFrame(gameLoop);
         }
