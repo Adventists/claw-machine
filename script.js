@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let dolls = [];
     let bombs = [];
     let caughtDoll = null;
+    let isInvincible = false;
 
     // --- 游戏参数配置 ---
     const CLAW_SPEED_DROP = 5;
@@ -332,6 +333,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loseLife() {
+        // 如果正处于无敌状态，则不执行任何操作
+        if (isInvincible) {
+            return;
+        }
+
+        // 进入无敌状态
+        isInvincible = true;
+
         lives--;
         updateUI();
         
@@ -353,6 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lives <= 0) {
             gameOver('生命耗尽!');
         }
+
+        // 设置一个0.5秒的无敌时间，之后恢复正常
+        setTimeout(() => {
+            isInvincible = false;
+        }, 500); // 500毫秒的无敌时间
     }
 
     function gameOver(message) {
