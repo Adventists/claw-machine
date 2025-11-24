@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const livesDisplay = document.getElementById('lives');
     const messageOverlay = document.getElementById('message-overlay');
     const messageText = document.getElementById('message-text');
+    const dropButton = document.getElementById('drop-button');
 
     // --- 游戏状态变量 ---
     let gameState = 'ready'; // ready, dropping, retracting, caught
@@ -106,30 +107,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createDolls() {
-        const dollTypes = [
-            { class: 'green', weight: 1.2, value: 100 },
-            { class: 'purple', weight: 2.0, value: 250 },
-            { class: 'green', weight: 1.0, value: 80 },
-            { class: 'purple', weight: 1.8, value: 200 },
-            { class: 'green', weight: 1.5, value: 150 },
-        ];
+    const dollTypes = [
+        // 增加了 size 属性 (基础大小为1.0)
+        { class: 'green', weight: 1.0, value: 80,  size: 0.9 },
+        { class: 'purple', weight: 1.8, value: 200, size: 1.2 },
+        { class: 'green', weight: 1.2, value: 100, size: 1.0 },
+        { class: 'purple', weight: 2.0, value: 250, size: 1.3 },
+        { class: 'green', weight: 1.5, value: 150, size: 1.1 },
+    ];
 
-        dollTypes.forEach((type, index) => {
-            const dollEl = document.createElement('div');
-            dollEl.classList.add('doll', type.class);
-            const xPos = 20 + index * (PLAY_AREA_WIDTH / dollTypes.length);
-            dollEl.style.left = `${xPos}px`;
-            
-            playArea.appendChild(dollEl);
-            
-            dolls.push({
-                element: dollEl,
-                weight: type.weight,
-                value: type.value,
-                isCaught: false
-            });
+    dollTypes.forEach((type, index) => {
+        const dollEl = document.createElement('div');
+        dollEl.classList.add('doll', type.class);
+
+        // 根据 size 属性动态设置玩偶大小
+        const baseWidth = 50; // px
+        const baseHeight = 70; // px
+        dollEl.style.width = `${baseWidth * type.size}px`;
+        dollEl.style.height = `${baseHeight * type.size}px`;
+
+        // 为了避免大玩偶重叠，稍微调整间距
+        const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5));
+        dollEl.style.left = `${xPos}px`;
+        
+        playArea.appendChild(dollEl);
+        
+        dolls.push({
+            element: dollEl,
+            weight: type.weight,
+            value: type.value,
+            isCaught: false
         });
-    }
+    });
+}
 
     function updateUI() {
         timerDisplay.textContent = `时间: ${timeLeft}`;
@@ -138,13 +148,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- 按键控制 ---
-    document.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && gameState === 'ready') {
+    // --- 交互控制 ---
+    // 1. 按钮点击
+    dropButton.addEventListener('click', () => {
+        if (gameState === 'ready') {
             dropClaw();
         }
+    });
+
+    // 2. 键盘快捷键 (保留ESC重置，移除空格)
+    document.addEventListener('keydown', (e) => {
         if (e.code === 'Escape') {
             initGame();
         }
+        // 我们把空格键的功能移除了，如果你想保留它作为备用，可以取消下面这几行的注释
+        // if (e.code === 'Space' && gameState === 'ready') {
+        //     dropClaw();
+        // }
     });
 
     function dropClaw() {
