@@ -126,15 +126,27 @@ body {
 }
 
 .joystick-base {
-    width: 100px;
-    height: 40px;
+    width: 120px; /* 加宽一点 */
+    height: 30px; /* 压扁一点 */
     background: #3c3c3c;
-    border-radius: 20px;
+    border-radius: 15px;
     border: 3px solid #222;
     position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
+    box-shadow: inset 0 3px 5px rgba(0,0,0,0.5); /* 增加内阴影，制造凹陷感 */
+}
+/* 摇杆的插槽 */
+.joystick-base::before {
+    content: '';
+    position: absolute;
+    width: 60px;
+    height: 10px;
+    background: #222;
+    border-radius: 5px;
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 #joystick-handle {
@@ -142,14 +154,40 @@ body {
     height: 60px;
     background: linear-gradient(to top, #55aaff, #88ccff);
     border: 3px solid #222;
-    border-radius: 15px;
+    border-radius: 15px 15px 5px 5px; /* 顶部圆角，底部方正 */
     cursor: grab;
     position: absolute;
-    bottom: 10px;
+    bottom: 25px; /* 提高一点，让它看起来插在底座里 */
+    left: calc(50% - 15px); /* 水平居中 */
+    transform-origin: bottom center; /* !! 关键：设置旋转中心为底部中心 */
     box-shadow: 0 5px 10px rgba(0,0,0,0.5);
+    transition: transform 0.1s ease-out; /* !! 关键：增加平滑的摆动动画 */
 }
 #joystick-handle:active {
     cursor: grabbing;
+}
+
+#joystick-prompt {
+    position: absolute;
+    top: -25px; /* 在摇杆底座上方 */
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 5px #0ff, 0 0 10px #0ff;
+    pointer-events: none; /* 让鼠标可以穿透它，不会干扰拖拽 */
+    
+    /* 流光效果 */
+    background: linear-gradient(90deg, #fff, #0ff, #fff);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: flow-light 3s linear infinite;
+}
+
+@keyframes flow-light {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
 }
 
 .drop-button {
