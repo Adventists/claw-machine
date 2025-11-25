@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eggie Claw 复刻版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Eggie Claw - 爽快版</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -32,24 +32,23 @@
                     </div>
                 </div>
 
-                <!-- 游戏元素 -->
+                <!-- 炸弹容器 -->
                 <div id="bomb-container">
-                    <!-- 初始炸弹会由JS创建 -->
+                    <!-- 炸弹会由JS动态添加 -->
                 </div>
 
                 <!-- 玩偶会被JS动态添加 -->
-
             </div>
 
-            <div class="machine-bottom">
-                <div class="joystick-base">
-                    <div id="joystick-prompt" class="hidden">» 加速</div> <!-- 新增的提示元素 -->
-                    <div id="joystick-handle"></div>
-                </div>
-                <div id="drop-button" class="drop-button"></div>
-            </div>
+            <!-- 底部区域被简化了 -->
+            <div class="machine-bottom"></div>
         </div>
         
+        <!-- 新增：热度条UI -->
+        <div id="heat-bar-container">
+            <div id="heat-bar"></div>
+        </div>
+
         <!-- 游戏结束/提示画面 -->
         <div id="message-overlay" class="hidden">
             <div id="message-text">游戏结束!</div>

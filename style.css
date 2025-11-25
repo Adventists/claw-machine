@@ -13,9 +13,11 @@ body {
 
 #game-container {
     position: relative;
-    width: 600px;
+    width: 600px; /* 我们之后可以改为竖屏比例 */
     height: 800px;
-    user-select: none; /* 防止拖动时选中文本 */
+    user-select: none;
+    -webkit-user-select: none; /* 兼容 Safari */
+    touch-action: none; /* 禁止触摸时的默认行为，如滚动 */
 }
 
 /* --- UI 面板 --- */
@@ -28,6 +30,8 @@ body {
     margin-bottom: 10px;
     font-size: 1.2em;
     font-weight: bold;
+    position: relative;
+    z-index: 10;
 }
 
 /* --- 游戏机样式 --- */
@@ -43,24 +47,29 @@ body {
     position: relative;
 }
 
-.machine-top {
+.machine-top, .machine-bottom {
     padding: 15px;
     background: #5f9ea0;
-    border-radius: 30px 30px 0 0;
     border-bottom: 5px solid #4a7c7d;
     position: relative;
+}
+.machine-top { border-radius: 30px 30px 0 0; }
+.machine-bottom { 
+    height: 30px;
+    border-top: 5px solid #3a6061;
+    border-bottom: none;
+    border-radius: 0 0 30px 30px;
 }
 
 .logo {
     font-size: 2.5em;
     font-weight: bold;
-    color: #483d8b; /* 紫色 */
+    color: #483d8b;
     text-shadow: 3px 3px 0 #fff, -2px -2px 0 #fff;
     text-align: center;
     font-family: 'Comic Sans MS', cursive, sans-serif;
 }
 
-/* 顶部装饰，模仿那个破壳的恐龙 */
 .decoration {
     position: absolute;
     width: 80px;
@@ -70,256 +79,65 @@ body {
     border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%;
     left: 20px;
     top: -30px;
-    /* 这里可以用伪元素画眼睛和嘴巴，或者直接用图片 */
 }
-.decoration::before { /* 眼睛 */
-    content: '';
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    background: white;
-    border: 2px solid black;
-    border-radius: 50%;
-    top: 20px;
-    left: 25px;
-}
-.decoration::after { /* 瞳孔 */
-    content: '';
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: black;
-    border-radius: 50%;
-    top: 28px;
-    left: 31px;
-}
-
+.decoration::before { content: ''; position: absolute; width: 20px; height: 20px; background: white; border: 2px solid black; border-radius: 50%; top: 20px; left: 25px; }
+.decoration::after { content: ''; position: absolute; width: 8px; height: 8px; background: black; border-radius: 50%; top: 28px; left: 31px; }
 
 #play-area {
     flex-grow: 1;
     position: relative;
     background: linear-gradient(to top, rgba(30, 62, 64, 0.9), rgba(60, 100, 102, 0.7));
-    overflow: hidden; /* 保证抓钩不出界 */
+    overflow: hidden;
     border-bottom: 2px solid #333;
     border-top: 2px solid #666;
 }
-/* 玻璃反光效果 */
-#play-area::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 50%;
-    height: 100%;
-    background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
-    transform: skewX(-25deg);
-}
+#play-area::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%); transform: skewX(-25deg); }
 
-.machine-bottom {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 50px;
-    background: #4a7c7d;
-    border-radius: 0 0 30px 30px;
-    border-top: 5px solid #3a6061;
-}
-
-.joystick-base {
-    width: 120px; /* 加宽一点 */
-    height: 30px; /* 压扁一点 */
-    background: #3c3c3c;
-    border-radius: 15px;
-    border: 3px solid #222;
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: inset 0 3px 5px rgba(0,0,0,0.5); /* 增加内阴影，制造凹陷感 */
-}
-/* 摇杆的插槽 */
-.joystick-base::before {
-    content: '';
-    position: absolute;
-    width: 60px;
-    height: 10px;
-    background: #222;
-    border-radius: 5px;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-#joystick-handle {
-    width: 30px;
-    height: 60px;
-    background: linear-gradient(to top, #55aaff, #88ccff);
-    border: 3px solid #222;
-    border-radius: 15px 15px 5px 5px; /* 顶部圆角，底部方正 */
-    cursor: grab;
-    position: absolute;
-    bottom: 25px; /* 提高一点，让它看起来插在底座里 */
-    left: calc(50% - 15px); /* 水平居中 */
-    transform-origin: bottom center; /* !! 关键：设置旋转中心为底部中心 */
-    box-shadow: 0 5px 10px rgba(0,0,0,0.5);
-    transition: transform 0.1s ease-out; /* !! 关键：增加平滑的摆动动画 */
-}
-#joystick-handle:active {
-    cursor: grabbing;
-}
-
-#joystick-prompt {
-    position: absolute;
-    top: -80px; /* 在摇杆底座上方 */
-    font-size: 14px;
-    font-weight: bold;
-    color: #fff;
-    text-shadow: 0 0 5px #0ff, 0 0 10px #0ff;
-    pointer-events: none; /* 让鼠标可以穿透它，不会干扰拖拽 */
-    
-    /* 流光效果 */
-    background: linear-gradient(90deg, #fff, #0ff, #fff);
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: flow-light 3s linear infinite;
-}
-
-@keyframes flow-light {
-    from { background-position: 200% 0; }
-    to { background-position: -200% 0; }
-}
-
-.drop-button {
-    width: 80px;
-    height: 40px;
-    background: #e74c3c;
-    border-radius: 20px;
-    border: 3px solid #c0392b;
-    box-shadow: 0 5px 0 #a52a1a, inset 0 3px 5px rgba(255,255,255,0.4);
-}
 
 /* --- 游戏元素 --- */
-#claw-assembly {
-    position: absolute;
-    top: 0;
-    left: 50%; /* JS会控制这个值 */
-    width: 60px;
-    transform: translateX(-50%);
-    height: 100%; /* 允许爪子移动到任何地方 */
-}
-
-/* 抓钩本身，负责上下移动 */
-#claw {
-    position: absolute;
-    bottom: 90%; /* 从顶部开始 */
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 40px;
-    background: #f0a080;
-    border: 3px solid #553322;
-    border-radius: 5px;
-}
-/* 抓钩的绳子 */
-#claw::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 4px;
-    height: 500px; /* 一个足够大的值 */
-    background: #555;
-}
-/* 抓钩的爪子 */
-.claw-arm {
-    position: absolute;
-    width: 12px;
-    height: 25px;
-    background: #f0a080;
-    border: 3px solid #553322;
-    bottom: -15px;
-    transform-origin: top center;
-    transition: transform 0.2s;
-}
-.claw-arm.left {
-    left: -5px;
-    border-radius: 0 0 5px 5px;
-    transform: rotate(20deg);
-}
-.claw-arm.right {
-    right: -5px;
-    border-radius: 0 0 5px 5px;
-    transform: rotate(-20deg);
-}
-/* 抓取时的状态 */
+#claw-assembly, #claw, .doll, .bomb { position: absolute; }
+#claw-assembly { top: 0; left: 50%; width: 60px; transform: translateX(-50%); height: 100%; }
+#claw { bottom: 90%; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; background: #f0a080; border: 3px solid #553322; border-radius: 5px; }
+#claw::before { content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); width: 4px; height: 500px; background: #555; }
+.claw-arm { position: absolute; width: 12px; height: 25px; background: #f0a080; border: 3px solid #553322; bottom: -15px; transform-origin: top center; transition: transform 0.2s; }
+.claw-arm.left { left: -5px; border-radius: 0 0 5px 5px; transform: rotate(20deg); }
+.claw-arm.right { right: -5px; border-radius: 0 0 5px 5px; transform: rotate(-20deg); }
 #claw.grabbing .claw-arm.left { transform: rotate(-10deg); }
 #claw.grabbing .claw-arm.right { transform: rotate(10deg); }
 
+.doll { bottom: 20px; width: 50px; height: 70px; border-radius: 50% / 40% 40% 60% 60%; border: 3px solid #333; transition: all 0.2s; }
+.doll.green { background: linear-gradient(to top, #6ab04c, #badc58); }
+.doll.purple { background: linear-gradient(to top, #9b59b6, #be90d4); }
 
-/* 玩偶 */
-.doll {
-    position: absolute;
-    bottom: 20px;
-    width: 50px;
-    height: 70px;
-    border-radius: 50% / 40% 40% 60% 60%;
-    border: 3px solid #333;
-    transition: all 0.2s;
-}
-.doll.green {
-    background: linear-gradient(to top, #6ab04c, #badc58);
-}
-.doll.purple {
-    background: linear-gradient(to top, #9b59b6, #be90d4);
-}
+#bomb-container { position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; }
+.bomb { width: 40px; height: 40px; background: red; border-radius: 50%; border: 3px solid black; box-shadow: 0 0 10px red; }
+.bomb::before { content: ''; position: absolute; width: 10px; height: 10px; background: #333; top: -5px; left: 15px; }
 
-/* 通用炸弹样式 */
-.bomb {
+/* --- 新增：热度条样式 --- */
+#heat-bar-container {
     position: absolute;
-    width: 40px;
-    height: 40px;
-    background: red;
-    border-radius: 50%;
-    border: 3px solid black;
-    box-shadow: 0 0 10px red;
-    /* top 和 left/animation 将由 JS 控制 */
+    right: 20px;
+    top: 200px;
+    width: 20px;
+    height: 300px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 3px solid #ddd;
+    border-radius: 10px;
+    padding: 3px;
+    z-index: 20;
 }
-.bomb::before { /* 引线 */
-    content: '';
+#heat-bar {
+    width: 100%;
+    height: 0%; /* JS会控制这个高度 */
+    background: linear-gradient(to top, #f39c12, #f1c40f, #e67e22, #d35400, #c0392b);
+    border-radius: 5px;
     position: absolute;
-    width: 10px;
-    height: 10px;
-    background: #333;
-    top: -5px;
-    left: 15px;
+    bottom: 3px;
+    transition: height 0.1s linear; /* 平滑变化 */
 }
 
 
 /* --- 消息覆盖层 --- */
-.hidden {
-    display: none !important;
-}
-
-#message-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    text-align: center;
-    z-index: 100;
-}
-
-#message-text {
-    font-size: 3em;
-    font-weight: bold;
-    text-shadow: 3px 3px 5px #000;
-}
+.hidden { display: none !important; }
+#message-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; z-index: 100; }
+#message-text { font-size: 3em; font-weight: bold; text-shadow: 3px 3px 5px #000; }
