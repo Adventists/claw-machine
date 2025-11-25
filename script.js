@@ -13,7 +13,7 @@ const messageOverlay = document.getElementById('message-overlay');
 const messageText = document.getElementById('message-text');
 
 // --- 游戏状态变量 ---
-let gameState = 'ready'; // ready, aiming, dropping, retracting, caught, over
+let gameState = 'ready'; // ready, aiming, dropping, retracting, caught, stunned, over
 let score = 0;
 let lives = 3;
 let timeLeft = 60;
@@ -34,7 +34,7 @@ const CLAW_SPEED_DROP = 7; // 提高下落速度，更爽快
 const CLAW_SPEED_RETRACT_EMPTY = 6;
 const CLAW_SPEED_RETRACT_BASE = 4;
 const BOOST_MULTIPLIER = 3.0; // 加速倍率
-const HEAT_INCREASE_RATE = 40; // 每秒增加的热度
+const HEAT_INCREASE_RATE = 80; // 每秒增加的热度
 const HEAT_DECREASE_RATE = 30; // 每秒减少的热度
 
 const PLAY_AREA_WIDTH = playArea.offsetWidth;
@@ -201,8 +201,11 @@ function dropClaw() { gameState = 'dropping'; }
 // M1 核心：重构游戏主循环
 function updateGame(deltaTime) {
     // 热度条更新逻辑
-    if (isBoosting) {
+    if (isBoosting && gameState !== 'stunned') { // 眩晕时不能加速
         heat = Math.min(100, heat + HEAT_INCREASE_RATE * deltaTime);
+        if (heat >= 100) {
+            triggerOverheat();
+        }
     } else {
         heat = Math.max(0, heat - HEAT_DECREASE_RATE * deltaTime);
     }
@@ -303,6 +306,36 @@ function grabDoll(doll) {
     const clawRect = claw.getBoundingClientRect();
     const playAreaRect = playArea.getBoundingClientRect();
     doll.element.style.left = `${clawRect.left - playAreaRect.left + (clawRect.width - doll.element.offsetWidth)/2}px`;
+}
+
+function triggerOverheat() {
+    console.log("过热了！");
+    isBoosting = false; // 停止加速
+    heat = 0; // 热度清零
+    updateHeatBar();
+
+    // 如果抓着娃娃，娃娃掉落
+    if (caughtDoll) {
+        claw.classList.remove('grabbing');
+        // M2 改进：让娃娃掉回原位
+        // 我们需要一个地方存储娃娃被抓前的原始位置
+        // 这里我们先简化处理：直接移除
+        dolls = dolls.filter(d => d.element !== caughtDoll.element);
+        caughtDoll.element.remove();
+        caughtDoll = null;
+    }
+
+    // 进入眩晕状态
+    gameState = 'stunned';
+    // (可选)给爪子一个冒烟或电火花的class来显示眩晕
+    setTimeout(() => {
+        // 眩晕结束后，如果爪子在半空中，则继续回收
+        if (parseFloat(claw.style.bottom) < 90) {
+            gameState = 'retracting';
+        } else {
+            gameState = 'ready';
+        }
+    }, 1500); // 眩晕1.5秒
 }
 
 function loseLife() {
