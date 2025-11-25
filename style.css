@@ -169,7 +169,7 @@ body {
 
 #joystick-prompt {
     position: absolute;
-    top: -25px; /* 在摇杆底座上方 */
+    top: -80px; /* 在摇杆底座上方 */
     font-size: 14px;
     font-weight: bold;
     color: #fff;
