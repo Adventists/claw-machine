@@ -11,6 +11,7 @@ const scoreDisplay = document.getElementById('score');
 const livesDisplay = document.getElementById('lives');
 const messageOverlay = document.getElementById('message-overlay');
 const messageText = document.getElementById('message-text');
+const stunIndicator = document.getElementById('stun-indicator');
 
 // --- 游戏状态变量 ---
 let gameState = 'ready'; // ready, aiming, dropping, retracting, caught, stunned, over
@@ -107,6 +108,7 @@ function initGame() {
 
     updateUI();
     messageOverlay.classList.add('hidden');
+    stunIndicator.classList.add('hidden');
     
     playArea.querySelectorAll('.doll').forEach(d => d.remove());
     dolls = [];
@@ -391,37 +393,60 @@ function dropCaughtDoll() {
 function triggerOverheat() {
     console.log("过热了！");
     isBoosting = false;
-    
-    // 强制让热度条满格并开始闪烁
-    heat = 100;
-    updateHeatBar();
-    claw.classList.add('stunned');
-    heatBar.classList.add('stunned');
+    gameState = 'stunned';
 
     // 如果抓着娃娃，娃娃掉落
     if (caughtDoll) {
-        dropCaughtDoll(); // 使用新的专用函数来处理掉落
+        dropCaughtDoll();
     }
 
-    // 进入眩晕状态
-    gameState = 'stunned';
+    // --- 全新的、强制的闪烁逻辑 ---
+    let flickerInterval = null;
+    let isRed = false; // 跟踪当前是否为红色状态
 
-    const stunDuration = 1500; // 眩晕1.5秒
+    // 1. 显示文字提示
+    stunIndicator.classList.remove('hidden');
+
+    // 2. 开始强制闪烁
+    flickerInterval = setInterval(() => {
+        isRed = !isRed; // 切换状态
+        if (isRed) {
+            // 强制变为红色
+            claw.style.borderColor = '#f00';
+            claw.style.boxShadow = '0 0 10px #f00';
+            heatBar.style.backgroundColor = '#ff4d4d';
+        } else {
+            // 强制恢复原色
+            claw.style.borderColor = '#553322';
+            claw.style.boxShadow = 'none';
+            heatBar.style.backgroundColor = ''; // 清除内联样式，让它用CSS里的渐变色
+        }
+    }, 150); // 每150毫秒闪烁一次
+
+    // 热度条平滑下降
+    const stunDuration = 1500;
     let heatDropInterval = setInterval(() => {
-        // 在眩晕期间，热度条逐渐下降
-        heat = Math.max(0, heat - (100 / (stunDuration / 50))); // 在1.5秒内平滑降到0
+        heat = Math.max(0, heat - (100 / (stunDuration / 50)));
         updateHeatBar();
     }, 50);
-    
+
+    // 3. 在眩晕结束后，清理一切
     setTimeout(() => {
-        // 眩晕结束，清理一切
+        // 停止所有定时器
+        clearInterval(flickerInterval);
         clearInterval(heatDropInterval);
+        
+        // 隐藏文字提示
+        stunIndicator.classList.add('hidden');
+        
+        // 恢复所有元素的最终状态
         heat = 0;
         updateHeatBar();
-        claw.classList.remove('stunned');
-        heatBar.classList.remove('stunned');
+        claw.style.borderColor = ''; // 清除所有内联样式
+        claw.style.boxShadow = '';
+        heatBar.style.backgroundColor = '';
 
-        // 恢复状态
+        // 恢复游戏状态
         if (parseFloat(claw.style.bottom) < 90) {
             gameState = 'retracting';
         } else {

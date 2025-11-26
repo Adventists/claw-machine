@@ -172,30 +172,3 @@ body {
 .hidden { display: none !important; }
 #message-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; z-index: 100; }
 #message-text { font-size: 3em; font-weight: bold; text-shadow: 3px 3px 5px #000; }
-
-/* 新增：眩晕闪烁动画 */
-@keyframes flicker-red {
-    0%, 100% { 
-        box-shadow: 0 0 5px #fff, 0 0 10px #f00, 0 0 15px #f00;
-        border-color: #f00;
-    }
-    50% { 
-        box-shadow: none;
-        border-color: #553322; /* 恢复原色 */
-    }
-}
-
-@keyframes heat-flicker {
-    0%, 100% { background: #ff4d4d; }
-    50% { background: #fff; }
-}
-
-/* 眩晕状态的爪子 */
-#claw.stunned {
-    animation: flicker-red 0.2s infinite;
-}
-
-/* 眩晕状态的热度条 */
-#heat-bar.stunned {
-    animation: heat-flicker 0.2s infinite;
-}
