@@ -24,6 +24,7 @@ let dolls = [];
 let bombs = [];
 let caughtDoll = null;
 let isInvincible = false;
+let caughtDollOriginalPos = { left: 0, bottom: 0 }; // 用于掉落时恢复位置
 
 // --- M1 新增的状态变量 ---
 let isAiming = false;
@@ -331,21 +332,12 @@ function checkCollisions() {
 
     // 与炸弹碰撞
     for (const bomb of bombs) {
-        if (bomb.isDestroyed) continue;
+        if (bomb.isDestroyed) continue; // (这个可以保留，为以后做准备)
         const bombRect = bomb.element.getBoundingClientRect();
         if (isColliding(clawRect, bombRect)) {
-            if (isBoosting) {
-                // 冲刺破坏！
-                bomb.isDestroyed = true;
-                bomb.element.remove(); // 暂时直接移除
-                score += 10; // 奖励
-                updateUI();
-                console.log("炸弹被摧毁!");
-            } else {
-                // 普通碰撞
-                loseLife();
-            }
-            return;
+            // 无论是否在加速，碰到炸弹都触发惩罚
+            loseLife();
+            return; // 立即返回，避免一帧内多次触发
         }
     }
 
@@ -369,39 +361,73 @@ function grabDoll(doll) {
     caughtDoll = doll;
     doll.isCaught = true;
     claw.classList.add('grabbing');
+
+    // 关键：记录娃娃被抓前的原始样式
+    caughtDollOriginalPos.left = doll.element.style.left;
+    caughtDollOriginalPos.bottom = doll.element.style.bottom || '20px'; // 如果没有bottom就用默认值
+
+    // 吸附到爪子上
     const clawRect = claw.getBoundingClientRect();
     const playAreaRect = playArea.getBoundingClientRect();
     doll.element.style.left = `${clawRect.left - playAreaRect.left + (clawRect.width - doll.element.offsetWidth)/2}px`;
 }
 
+function dropCaughtDoll() {
+    if (!caughtDoll) return;
+
+    console.log("娃娃掉落了！");
+    claw.classList.remove('grabbing');
+
+    // 恢复娃娃的状态和位置
+    caughtDoll.isCaught = false;
+    caughtDoll.element.style.left = caughtDollOriginalPos.left;
+    caughtDoll.element.style.bottom = caughtDollOriginalPos.bottom;
+    // 如果你的娃娃是靠 top 定位的，这里可能需要转换一下
+    // 但我们之前是用 bottom，所以这样是OK的
+
+    caughtDoll = null;
+}
+
 function triggerOverheat() {
     console.log("过热了！");
-    isBoosting = false; // 停止加速
-    heat = 0; // 热度清零
+    isBoosting = false;
+    
+    // 强制让热度条满格并开始闪烁
+    heat = 100;
     updateHeatBar();
+    claw.classList.add('stunned');
+    heatBar.classList.add('stunned');
 
     // 如果抓着娃娃，娃娃掉落
     if (caughtDoll) {
-        claw.classList.remove('grabbing');
-        // M2 改进：让娃娃掉回原位
-        // 我们需要一个地方存储娃娃被抓前的原始位置
-        // 这里我们先简化处理：直接移除
-        dolls = dolls.filter(d => d.element !== caughtDoll.element);
-        caughtDoll.element.remove();
-        caughtDoll = null;
+        dropCaughtDoll(); // 使用新的专用函数来处理掉落
     }
 
     // 进入眩晕状态
     gameState = 'stunned';
-    // (可选)给爪子一个冒烟或电火花的class来显示眩晕
+
+    const stunDuration = 1500; // 眩晕1.5秒
+    let heatDropInterval = setInterval(() => {
+        // 在眩晕期间，热度条逐渐下降
+        heat = Math.max(0, heat - (100 / (stunDuration / 50))); // 在1.5秒内平滑降到0
+        updateHeatBar();
+    }, 50);
+    
     setTimeout(() => {
-        // 眩晕结束后，如果爪子在半空中，则继续回收
+        // 眩晕结束，清理一切
+        clearInterval(heatDropInterval);
+        heat = 0;
+        updateHeatBar();
+        claw.classList.remove('stunned');
+        heatBar.classList.remove('stunned');
+
+        // 恢复状态
         if (parseFloat(claw.style.bottom) < 90) {
             gameState = 'retracting';
         } else {
             gameState = 'ready';
         }
-    }, 1500); // 眩晕1.5秒
+    }, stunDuration);
 }
 
 function loseLife() {
@@ -413,15 +439,12 @@ function loseLife() {
     playArea.style.animation = 'flash 0.3s';
     setTimeout(() => playArea.style.animation = '', 300);
 
+    // 如果抓着娃娃，让它掉落
     if (caughtDoll) {
-        // M1 简化版：彩蛋直接消失，但不扣血（或只扣少量血）
-        // 这里我们还是按扣血算，但彩蛋消失
-        dolls = dolls.filter(d => d.element !== caughtDoll.element);
-        caughtDoll.element.remove();
-        caughtDoll = null;
-        console.log("彩蛋被毁了！");
+        dropCaughtDoll();
     }
     
+    // 强制进入回收状态
     gameState = 'retracting';
     claw.classList.remove('grabbing');
     
