@@ -12,7 +12,10 @@
         <!-- 游戏状态UI -->
         <div id="ui-panel">
             <div id="timer">时间: 60</div>
-            <div id="score">金钱: $0</div>
+            <div id="score-container">
+                <span id="score">金钱: $0</span>
+                <span id="score-target">/ $100</span>
+            </div>
             <div id="lives">生命: ♥ ♥ ♥</div>
         </div>
 
@@ -24,7 +27,6 @@
             </div>
             
             <div id="play-area">
-                <!-- 抓钩组件 -->
                 <div id="claw-assembly">
                     <div id="claw">
                         <div class="claw-arm left"></div>
@@ -54,10 +56,10 @@
         </div>
     </div>
 
-    <!-- 胜利结算与开奖界面 -->
+    <!-- 胜利结算与开奖界面 (移到 game-container 外面) -->
     <div id="win-overlay" class="hidden">
         <h2>胜利!</h2>
-        <p id="win-prompt">请选择一个幸运彩蛋来开启奖励！</p>
+        <p id="win-prompt">请选择一个战利品来开启最终奖励！</p>
         <div id="egg-selection-container">
             <!-- JS 会在这里动态添加彩蛋 -->
         </div>
