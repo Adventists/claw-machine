@@ -1,98 +1,21 @@
 /* --- 基础设置 --- */
-body {
-    background-color: #1a1a1a;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    overflow: hidden;
-    color: white;
-}
-
-#game-container {
-    position: relative;
-    width: 600px; /* 我们之后可以改为竖屏比例 */
-    height: 800px;
-    user-select: none;
-    -webkit-user-select: none; /* 兼容 Safari */
-    touch-action: none; /* 禁止触摸时的默认行为，如滚动 */
-}
+body { background-color: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Arial', sans-serif; overflow: hidden; color: white; }
+#game-container { position: relative; width: 600px; height: 800px; user-select: none; -webkit-user-select: none; touch-action: none; }
 
 /* --- UI 面板 --- */
-#ui-panel {
-    display: flex;
-    justify-content: space-around;
-    padding: 10px;
-    background: #222;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    font-size: 1.2em;
-    font-weight: bold;
-    position: relative;
-    z-index: 10;
-}
+#ui-panel { display: flex; justify-content: space-around; padding: 10px; background: #222; border-radius: 10px; margin-bottom: 10px; font-size: 1.2em; font-weight: bold; position: relative; z-index: 10; }
 
 /* --- 游戏机样式 --- */
-#machine {
-    width: 100%;
-    height: 720px;
-    background: linear-gradient(to bottom, #2a5a5b, #1e3e40);
-    border: 8px solid #4a7c7d;
-    border-radius: 40px;
-    box-shadow: 0 0 20px rgba(137, 207, 240, 0.3), inset 0 0 15px rgba(0,0,0,0.5);
-    display: flex;
-    flex-direction: column;
-    position: relative;
-}
-
-.machine-top, .machine-bottom {
-    padding: 15px;
-    background: #5f9ea0;
-    border-bottom: 5px solid #4a7c7d;
-    position: relative;
-}
+#machine { width: 100%; height: 720px; background: linear-gradient(to bottom, #2a5a5b, #1e3e40); border: 8px solid #4a7c7d; border-radius: 40px; box-shadow: 0 0 20px rgba(137, 207, 240, 0.3), inset 0 0 15px rgba(0,0,0,0.5); display: flex; flex-direction: column; position: relative; }
+.machine-top, .machine-bottom { padding: 15px; background: #5f9ea0; border-bottom: 5px solid #4a7c7d; position: relative; }
 .machine-top { border-radius: 30px 30px 0 0; }
-.machine-bottom { 
-    height: 30px;
-    border-top: 5px solid #3a6061;
-    border-bottom: none;
-    border-radius: 0 0 30px 30px;
-}
-
-.logo {
-    font-size: 2.5em;
-    font-weight: bold;
-    color: #483d8b;
-    text-shadow: 3px 3px 0 #fff, -2px -2px 0 #fff;
-    text-align: center;
-    font-family: 'Comic Sans MS', cursive, sans-serif;
-}
-
-.decoration {
-    position: absolute;
-    width: 80px;
-    height: 70px;
-    background: #e0e0e0;
-    border: 3px solid #333;
-    border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%;
-    left: 20px;
-    top: -30px;
-}
+.machine-bottom { height: 30px; border-top: 5px solid #3a6061; border-bottom: none; border-radius: 0 0 30px 30px; }
+.logo { font-size: 2.5em; font-weight: bold; color: #483d8b; text-shadow: 3px 3px 0 #fff, -2px -2px 0 #fff; text-align: center; font-family: 'Comic Sans MS', cursive, sans-serif; }
+.decoration { position: absolute; width: 80px; height: 70px; background: #e0e0e0; border: 3px solid #333; border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%; left: 20px; top: -30px; }
 .decoration::before { content: ''; position: absolute; width: 20px; height: 20px; background: white; border: 2px solid black; border-radius: 50%; top: 20px; left: 25px; }
 .decoration::after { content: ''; position: absolute; width: 8px; height: 8px; background: black; border-radius: 50%; top: 28px; left: 31px; }
-
-#play-area {
-    flex-grow: 1;
-    position: relative;
-    background: linear-gradient(to top, rgba(30, 62, 64, 0.9), rgba(60, 100, 102, 0.7));
-    overflow: hidden;
-    border-bottom: 2px solid #333;
-    border-top: 2px solid #666;
-}
+#play-area { flex-grow: 1; position: relative; background: linear-gradient(to top, rgba(30, 62, 64, 0.9), rgba(60, 100, 102, 0.7)); overflow: hidden; border-bottom: 2px solid #333; border-top: 2px solid #666; }
 #play-area::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%); transform: skewX(-25deg); }
-
 
 /* --- 游戏元素 --- */
 #claw-assembly, #claw, .doll, .bomb { position: absolute; }
@@ -104,71 +27,22 @@ body {
 .claw-arm.right { right: -5px; border-radius: 0 0 5px 5px; transform: rotate(-20deg); }
 #claw.grabbing .claw-arm.left { transform: rotate(-10deg); }
 #claw.grabbing .claw-arm.right { transform: rotate(10deg); }
-
 .doll { bottom: 20px; width: 50px; height: 70px; border-radius: 50% / 40% 40% 60% 60%; border: 3px solid #333; transition: all 0.2s; }
 .doll.green { background: linear-gradient(to top, #6ab04c, #badc58); }
 .doll.purple { background: linear-gradient(to top, #9b59b6, #be90d4); }
-.doll.heavy {
-    background: linear-gradient(to top, #7f8c8d, #95a5a6);
-    border: 4px solid #34495e;
-}
-
-.doll.time {
-    background: linear-gradient(to top, #3498db, #5dade2);
-    box-shadow: 0 0 10px #3498db;
-}
-
-.doll.cleaner {
-    background: linear-gradient(to top, #e74c3c, #c0392b);
-    border-color: #2c3e50;
-}
-
-.doll.surprise {
-    background: repeating-linear-gradient(
-        45deg,
-        #9b59b6,
-        #9b59b6 10px,
-        #f1c40f 10px,
-        #f1c40f 20px
-    );
-    animation: slide 1s linear infinite;
-    background-size: 28.28px 28.28px;
-}
-
-@keyframes slide {
-  from { background-position: 0 0; }
-  to { background-position: -28.28px 0; }
-}
-
+.doll.heavy { background: linear-gradient(to top, #7f8c8d, #95a5a6); border: 4px solid #34495e; }
+.doll.time { background: linear-gradient(to top, #3498db, #5dade2); box-shadow: 0 0 10px #3498db; }
+.doll.cleaner { background: linear-gradient(to top, #e74c3c, #c0392b); border-color: #2c3e50; }
+.doll.surprise { background: repeating-linear-gradient(45deg, #9b59b6, #9b59b6 10px, #f1c40f 10px, #f1c40f 20px); animation: slide 1s linear infinite; background-size: 28.28px 28.28px; }
+@keyframes slide { from { background-position: 0 0; } to { background-position: -28.28px 0; } }
 #bomb-container { position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; }
 .bomb { width: 40px; height: 40px; background: red; border-radius: 50%; border: 3px solid black; box-shadow: 0 0 10px red; }
 .bomb::before { content: ''; position: absolute; width: 10px; height: 10px; background: #333; top: -5px; left: 15px; }
 
-/* --- 新增：热度条样式 --- */
-#heat-bar-container {
-    position: absolute;
-    right: 20px;
-    top: 200px;
-    width: 20px;
-    height: 300px;
-    background-color: rgba(0, 0, 0, 0.5);
-    border: 3px solid #ddd;
-    border-radius: 10px;
-    padding: 3px;
-    z-index: 20;
-}
-#heat-bar {
-    width: 100%;
-    height: 0%; /* JS会控制这个高度 */
-    background: linear-gradient(to top, #f39c12, #f1c40f, #e67e22, #d35400, #c0392b);
-    border-radius: 5px;
-    position: absolute;
-    bottom: 3px;
-    transition: height 0.1s linear; /* 平滑变化 */
-}
+/* --- 热度条 --- */
+#heat-bar-container { position: absolute; right: 20px; top: 200px; width: 20px; height: 300px; background-color: rgba(0, 0, 0, 0.5); border: 3px solid #ddd; border-radius: 10px; padding: 3px; z-index: 20; }
+#heat-bar { width: 100%; height: 0%; background: linear-gradient(to top, #f39c12, #f1c40f, #e67e22, #d35400, #c0392b); border-radius: 5px; position: absolute; bottom: 3px; transition: height 0.1s linear; }
 
-
-/* --- 消息覆盖层 --- */
+/* --- 覆盖层与提示 --- */
 .hidden { display: none !important; }
-#message-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; z-index: 100; }
-#message-text { font-size: 3em; font-weight: bold; text-shadow: 3px 3px 5px #000; }
+#message-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0,

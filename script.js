@@ -5,53 +5,54 @@ const clawAssembly = document.getElementById('claw-assembly');
 const claw = document.getElementById('claw');
 const bombContainer = document.getElementById('bomb-container');
 const heatBar = document.getElementById('heat-bar');
+const stunIndicator = document.getElementById('stun-indicator');
 
 const timerDisplay = document.getElementById('timer');
 const scoreDisplay = document.getElementById('score');
 const livesDisplay = document.getElementById('lives');
 const messageOverlay = document.getElementById('message-overlay');
 const messageText = document.getElementById('message-text');
-const stunIndicator = document.getElementById('stun-indicator');
+
+const winOverlay = document.getElementById('win-overlay');
+const winPrompt = document.getElementById('win-prompt');
+const eggSelectionContainer = document.getElementById('egg-selection-container');
+const rewardDisplay = document.getElementById('reward-display');
+const rewardAnimal = document.getElementById('reward-animal');
+const rewardName = document.getElementById('reward-name');
+const winButtonsContainer = document.getElementById('win-buttons-container');
 
 // --- 游戏状态变量 ---
 let gameState = 'ready'; // ready, aiming, dropping, retracting, caught, stunned, over
-let score = 0;
-let lives = 3;
-let timeLeft; // 以秒为单位，每关时间，值在initGame中初始化
+let score = 0, lives = 3, timeLeft = 0, heat = 0;
+let dolls = [], bombs = [], caughtDoll = null, isInvincible = false;
+let isAiming = false, isBoosting = false;
+let caughtDollOriginalPos = { left: 0, bottom: 0 };
 let timerInterval;
-let heat = 0; // 热度值 0-100
-
-let dolls = [];
-let bombs = [];
-let caughtDoll = null;
-let isInvincible = false;
-let caughtDollOriginalPos = { left: 0, bottom: 0 }; // 用于掉落时恢复位置
-
-// --- M1 新增的状态变量 ---
-let isAiming = false;
-let isBoosting = false;
 
 // --- 游戏参数配置 ---
-const CLAW_SPEED_DROP = 15; // 提高下落速度，更爽快
-const CLAW_SPEED_RETRACT_EMPTY = 15;
+const INITIAL_TIME = 60;
+const WIN_SCORE = 100;
+const CLAW_SPEED_DROP = 7;
+const CLAW_SPEED_RETRACT_EMPTY = 6;
 const CLAW_SPEED_RETRACT_BASE = 4;
-const BOOST_MULTIPLIER = 3.0; // 加速倍率
-const HEAT_INCREASE_RATE = 80; // 每秒增加的热度
-const HEAT_DECREASE_RATE = 30; // 每秒减少的热度
+const BOOST_MULTIPLIER = 3.0;
+const HEAT_INCREASE_RATE = 60;
+const HEAT_DECREASE_RATE = 30;
+const STUN_DURATION = 1500;
 
 const PLAY_AREA_WIDTH = playArea.offsetWidth;
 const PLAY_AREA_HEIGHT = playArea.offsetHeight;
 const CLAW_ASSEMBLY_WIDTH = clawAssembly.offsetWidth;
 
-// --- M1 核心：全新输入逻辑 ---
+// --- 输入逻辑 ---
 gameContainer.addEventListener('mousedown', handlePointerDown);
-gameContainer.addEventListener('touchstart', handlePointerDown);
-
+gameContainer.addEventListener('touchstart', handlePointerDown, { passive: false });
 gameContainer.addEventListener('mousemove', handlePointerMove);
-gameContainer.addEventListener('touchmove', handlePointerMove);
-
+gameContainer.addEventListener('touchmove', handlePointerMove, { passive: false });
 document.addEventListener('mouseup', handlePointerUp);
 document.addEventListener('touchend', handlePointerUp);
+
+document.querySelectorAll('.restart-button').forEach(btn => btn.addEventListener('click', initGame));
 
 function handlePointerDown(e) {
     if (gameState === 'ready') {
@@ -62,54 +63,45 @@ function handlePointerDown(e) {
     }
     e.preventDefault();
 }
-
 function handlePointerMove(e) {
     if (!isAiming) return;
-    
-    // 统一处理触摸和鼠标事件
     const pointerX = e.touches ? e.touches[0].clientX : e.clientX;
     const playAreaRect = playArea.getBoundingClientRect();
-
-    const clawMinX = 0;
-    const clawMaxX = PLAY_AREA_WIDTH - CLAW_ASSEMBLY_WIDTH;
-    
-    // 将屏幕坐标转换为 playArea 内的相对坐标
     let targetX = pointerX - playAreaRect.left - (CLAW_ASSEMBLY_WIDTH / 2);
-    targetX = Math.max(clawMinX, Math.min(clawMaxX, targetX));
-    
+    targetX = Math.max(0, Math.min(PLAY_AREA_WIDTH - CLAW_ASSEMBLY_WIDTH, targetX));
     clawAssembly.style.left = `${targetX}px`;
     e.preventDefault();
 }
-
 function handlePointerUp(e) {
     if (isAiming) {
         isAiming = false;
-        dropClaw();
+        dropClaw(); // 调用恢复的函数
     }
     if (isBoosting) {
         isBoosting = false;
     }
     e.preventDefault();
 }
+document.addEventListener('keydown', (e) => { if (e.code === 'Escape') initGame(); });
 
 // --- 游戏核心逻辑 ---
+
+// 核心修复：恢复 dropClaw 函数
+function dropClaw() {
+    gameState = 'dropping';
+}
+
 function initGame() {
     gameState = 'ready';
-    score = 0;
-    lives = 3;
-    timeLeft = 30;
-    heat = 0;
+    score = 0; lives = 3; timeLeft = INITIAL_TIME; heat = 0;
     updateHeatBar();
-
-    caughtDoll = null;
-    isInvincible = false;
-    isAiming = false;
-    isBoosting = false;
-
+    caughtDoll = null; isInvincible = false; isAiming = false; isBoosting = false;
+    
     updateUI();
     messageOverlay.classList.add('hidden');
+    winOverlay.classList.add('hidden');
     stunIndicator.classList.add('hidden');
-    
+
     playArea.querySelectorAll('.doll').forEach(d => d.remove());
     dolls = [];
     bombContainer.innerHTML = '';
@@ -133,122 +125,32 @@ function initGame() {
         }
     }, 1000);
 
-    // 启动游戏循环
     let lastTime = 0;
     function gameLoop(currentTime) {
-        if (lastTime === 0) {
-            lastTime = currentTime;
-            requestAnimationFrame(gameLoop);
-            return;
-        }
+        if (gameState === 'over') return;
+        if (lastTime === 0) { lastTime = currentTime; requestAnimationFrame(gameLoop); return; }
         const deltaTime = (currentTime - lastTime) / 1000;
         lastTime = currentTime;
-
-        updateGame(deltaTime); // 将游戏逻辑放入一个独立的函数
-        
-        if (gameState !== 'over') {
-            requestAnimationFrame(gameLoop);
-        }
+        updateGame(deltaTime);
+        requestAnimationFrame(gameLoop);
     }
     requestAnimationFrame(gameLoop);
 }
 
-function updateHeatBar() {
-    heatBar.style.height = `${heat}%`;
-}
-
-function createDolls() {
-    // 彩蛋池
-    const normalDolls = [
-        { type: 'normal', class: 'green', weight: 1.0, value: 80,  size: 0.9 },
-        { type: 'normal', class: 'purple', weight: 1.8, value: 200, size: 1.2 },
-        { type: 'normal', class: 'green', weight: 1.2, value: 100, size: 1.0 },
-    ];
-    const specialDolls = [
-        { type: 'heavy', class: 'heavy', weight: 3.0, value: 500, size: 1.4 },
-        { type: 'time', class: 'time', weight: 0.8, value: 50, size: 0.8 },
-        { type: 'cleaner', class: 'cleaner', weight: 1.5, value: 150, size: 1.0 },
-        { type: 'surprise', class: 'surprise', weight: 1.0, value: 0, size: 1.0 }, // 价值在抓到时决定
-    ];
-
-    let dollTypes = [];
-    const totalDolls = 5;
-
-    // 随机生成一局的彩蛋组合
-    for (let i = 0; i < totalDolls; i++) {
-        // 70% 几率是普通蛋, 30% 几率是特殊蛋
-        if (Math.random() < 0.7) {
-            dollTypes.push(normalDolls[Math.floor(Math.random() * normalDolls.length)]);
-        } else {
-            dollTypes.push(specialDolls[Math.floor(Math.random() * specialDolls.length)]);
-        }
-    }
-
-    dollTypes.forEach((type, index) => {
-        const dollEl = document.createElement('div');
-        dollEl.classList.add('doll', type.class);
-        const baseWidth = 50, baseHeight = 70;
-        dollEl.style.width = `${baseWidth * type.size}px`;
-        dollEl.style.height = `${baseHeight * type.size}px`;
-        const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5));
-        dollEl.style.left = `${xPos}px`;
-        playArea.appendChild(dollEl);
-        
-        // 将类型也存进去
-        dolls.push({ 
-            element: dollEl, 
-            type: type.type, 
-            weight: type.weight, 
-            value: type.value, 
-            isCaught: false 
-        });
-    });
-}
-
-function createBomb() { /* ...此函数不变... */
-    const bombEl = document.createElement('div');
-    bombEl.classList.add('bomb');
-    const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300);
-    bombEl.style.top = `${randomTop}px`;
-    const animationDuration = 6 + Math.random() * 4;
-    const animationName = `moveBomb_${Date.now()}`;
-    const direction = Math.random() < 0.5 ? 'left-to-right' : 'right-to-left';
-    let keyframes;
-    if (direction === 'left-to-right') {
-        bombEl.style.left = `10px`;
-        keyframes = `@keyframes ${animationName} { from { left: 10px; } to { left: calc(100% - 50px); } }`;
-    } else {
-        bombEl.style.left = `calc(100% - 50px)`;
-        keyframes = `@keyframes ${animationName} { from { left: calc(100% - 50px); } to { left: 10px; } }`;
-    }
-    const styleSheet = document.styleSheets[document.styleSheets.length - 1];
-    styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
-    bombEl.style.animation = `${animationName} ${animationDuration}s linear infinite alternate`;
-    bombContainer.appendChild(bombEl);
-    bombs.push({ element: bombEl, isDestroyed: false }); // 增加一个状态
-}
-function updateUI() { /* ...此函数不变... */
-    timerDisplay.textContent = `时间: ${timeLeft}`;
-    scoreDisplay.textContent = `金钱: $${Math.floor(score)}`;
-    livesDisplay.textContent = '生命: ' + '♥ '.repeat(lives);
-}
-document.addEventListener('keydown', (e) => { if (e.code === 'Escape') initGame(); });
-function dropClaw() { gameState = 'dropping'; }
-
-// M1 核心：重构游戏主循环
 function updateGame(deltaTime) {
-    // 热度条更新逻辑
-    if (isBoosting && gameState !== 'stunned') { // 眩晕时不能加速
+    if (gameState === 'stunned') return;
+
+    if (isBoosting) {
         heat = Math.min(100, heat + HEAT_INCREASE_RATE * deltaTime);
         if (heat >= 100) {
             triggerOverheat();
+            return;
         }
     } else {
         heat = Math.max(0, heat - HEAT_DECREASE_RATE * deltaTime);
     }
     updateHeatBar();
 
-    // 抓钩下落
     if (gameState === 'dropping') {
         let currentBottom = parseFloat(claw.style.bottom);
         claw.style.bottom = `${currentBottom - CLAW_SPEED_DROP / 10}%`;
@@ -259,16 +161,13 @@ function updateGame(deltaTime) {
         }
     }
 
-    // 抓钩回收
     if (gameState === 'retracting' || gameState === 'caught') {
         let retractSpeed = CLAW_SPEED_RETRACT_EMPTY;
         if (gameState === 'caught' && caughtDoll) {
             retractSpeed = CLAW_SPEED_RETRACT_BASE / caughtDoll.weight;
         }
-        if (isBoosting) {
-            retractSpeed *= BOOST_MULTIPLIER;
-        }
-
+        if (isBoosting) retractSpeed *= BOOST_MULTIPLIER;
+        
         let currentBottom = parseFloat(claw.style.bottom);
         claw.style.bottom = `${currentBottom + retractSpeed / 10}%`;
         
@@ -277,51 +176,11 @@ function updateGame(deltaTime) {
             const playAreaRect = playArea.getBoundingClientRect();
             caughtDoll.element.style.top = `${clawRect.bottom - playAreaRect.top - 20}px`;
         }
-
         checkCollisions();
 
-        // 回到顶部
         if (parseFloat(claw.style.bottom) >= 90) {
             claw.style.bottom = '90%';
-            if (gameState === 'caught' && caughtDoll) {
-                let earnedValue = caughtDoll.value;
-
-                // 根据彩蛋类型触发特殊效果
-                switch(caughtDoll.type) {
-                    case 'time':
-                        timeLeft += 5;
-                        console.log("时间 +5!");
-                        break;
-                    case 'cleaner':
-                        bombs.forEach(bomb => {
-                            if (!bomb.isDestroyed) {
-                                bomb.isDestroyed = true;
-                                bomb.element.remove();
-                            }
-                        });
-                        console.log("清屏！");
-                        break;
-                    case 'surprise':
-                        // 50% 几率是惊喜, 50% 是惊吓
-                        if (Math.random() < 0.5) {
-                            earnedValue = 800; // 巨款！
-                            console.log("惊喜！获得800金！");
-                        } else {
-                            earnedValue = 1; // 一块钱...
-                            console.log("惊吓...只值1块钱。");
-                        }
-                        break;
-                    // 'heavy' 和 'normal' 没有特殊效果，只加分
-                }
-
-                score += earnedValue;
-                createBomb(); // 抓到任何东西都增加一个炸弹
-                
-                // 移除娃娃
-                dolls = dolls.filter(d => d.element !== caughtDoll.element);
-                caughtDoll.element.remove();
-                caughtDoll = null;
-            }
+            if (gameState === 'caught' && caughtDoll) handleCaughtDoll();
             gameState = 'ready';
             claw.classList.remove('grabbing');
             updateUI();
@@ -329,21 +188,35 @@ function updateGame(deltaTime) {
     }
 }
 
+function handleCaughtDoll() {
+    let earnedValue = caughtDoll.value;
+    switch (caughtDoll.type) {
+        case 'time': timeLeft += 5; break;
+        case 'cleaner':
+            bombs.forEach(bomb => { if (!bomb.isDestroyed) { bomb.isDestroyed = true; bomb.element.remove(); } });
+            bombs = [];
+            break;
+        case 'surprise':
+            earnedValue = Math.random() < 0.5 ? 800 : 1;
+            break;
+    }
+    score += earnedValue;
+    createBomb();
+    dolls = dolls.filter(d => d.element !== caughtDoll.element);
+    caughtDoll.element.remove();
+    caughtDoll = null;
+}
+
 function checkCollisions() {
     const clawRect = claw.getBoundingClientRect();
-
-    // 与炸弹碰撞
     for (const bomb of bombs) {
-        if (bomb.isDestroyed) continue; // (这个可以保留，为以后做准备)
+        if (bomb.isDestroyed) continue;
         const bombRect = bomb.element.getBoundingClientRect();
         if (isColliding(clawRect, bombRect)) {
-            // 无论是否在加速，碰到炸弹都触发惩罚
             loseLife();
-            return; // 立即返回，避免一帧内多次触发
+            return;
         }
     }
-
-    // 与玩偶碰撞 (仅下落时)
     if (gameState === 'dropping') {
         for (const doll of dolls) {
             if (doll.isCaught) continue;
@@ -356,103 +229,26 @@ function checkCollisions() {
     }
 }
     
-function isColliding(rect1, rect2) { /* ...此函数不变... */ return !(rect1.right < rect2.left || rect1.left > rect2.right || rect1.bottom < rect2.top || rect1.top > rect2.bottom); }
-
 function grabDoll(doll) {
     gameState = 'caught';
     caughtDoll = doll;
     doll.isCaught = true;
     claw.classList.add('grabbing');
-
-    // 关键：记录娃娃被抓前的原始样式
     caughtDollOriginalPos.left = doll.element.style.left;
-    caughtDollOriginalPos.bottom = doll.element.style.bottom || '20px'; // 如果没有bottom就用默认值
-
-    // 吸附到爪子上
+    caughtDollOriginalPos.bottom = doll.element.style.bottom || '20px';
     const clawRect = claw.getBoundingClientRect();
     const playAreaRect = playArea.getBoundingClientRect();
-    doll.element.style.left = `${clawRect.left - playAreaRect.left + (clawRect.width - doll.element.offsetWidth)/2}px`;
+    doll.element.style.left = `${clawRect.left - playAreaRect.left + (clawRect.width - doll.element.offsetWidth) / 2}px`;
 }
 
 function dropCaughtDoll() {
     if (!caughtDoll) return;
-
-    console.log("娃娃掉落了！");
     claw.classList.remove('grabbing');
-
-    // 恢复娃娃的状态和位置
     caughtDoll.isCaught = false;
     caughtDoll.element.style.left = caughtDollOriginalPos.left;
     caughtDoll.element.style.bottom = caughtDollOriginalPos.bottom;
-    // 如果你的娃娃是靠 top 定位的，这里可能需要转换一下
-    // 但我们之前是用 bottom，所以这样是OK的
-
+    caughtDoll.element.style.top = '';
     caughtDoll = null;
-}
-
-function triggerOverheat() {
-    console.log("过热了！");
-    isBoosting = false;
-    gameState = 'stunned';
-
-    // 如果抓着娃娃，娃娃掉落
-    if (caughtDoll) {
-        dropCaughtDoll();
-    }
-
-    // --- 全新的、强制的闪烁逻辑 ---
-    let flickerInterval = null;
-    let isRed = false; // 跟踪当前是否为红色状态
-
-    // 1. 显示文字提示
-    stunIndicator.classList.remove('hidden');
-
-    // 2. 开始强制闪烁
-    flickerInterval = setInterval(() => {
-        isRed = !isRed; // 切换状态
-        if (isRed) {
-            // 强制变为红色
-            claw.style.borderColor = '#f00';
-            claw.style.boxShadow = '0 0 10px #f00';
-            heatBar.style.backgroundColor = '#ff4d4d';
-        } else {
-            // 强制恢复原色
-            claw.style.borderColor = '#553322';
-            claw.style.boxShadow = 'none';
-            heatBar.style.backgroundColor = ''; // 清除内联样式，让它用CSS里的渐变色
-        }
-    }, 150); // 每150毫秒闪烁一次
-
-    // 热度条平滑下降
-    const stunDuration = 1500;
-    let heatDropInterval = setInterval(() => {
-        heat = Math.max(0, heat - (100 / (stunDuration / 50)));
-        updateHeatBar();
-    }, 50);
-
-    // 3. 在眩晕结束后，清理一切
-    setTimeout(() => {
-        // 停止所有定时器
-        clearInterval(flickerInterval);
-        clearInterval(heatDropInterval);
-        
-        // 隐藏文字提示
-        stunIndicator.classList.add('hidden');
-        
-        // 恢复所有元素的最终状态
-        heat = 0;
-        updateHeatBar();
-        claw.style.borderColor = ''; // 清除所有内联样式
-        claw.style.boxShadow = '';
-        heatBar.style.backgroundColor = '';
-
-        // 恢复游戏状态
-        if (parseFloat(claw.style.bottom) < 90) {
-            gameState = 'retracting';
-        } else {
-            gameState = 'ready';
-        }
-    }, stunDuration);
 }
 
 function loseLife() {
@@ -460,32 +256,106 @@ function loseLife() {
     isInvincible = true;
     lives--;
     updateUI();
-    
-    playArea.style.animation = 'flash 0.3s';
-    setTimeout(() => playArea.style.animation = '', 300);
-
-    // 如果抓着娃娃，让它掉落
-    if (caughtDoll) {
-        dropCaughtDoll();
-    }
-    
-    // 强制进入回收状态
+    if (caughtDoll) dropCaughtDoll();
     gameState = 'retracting';
     claw.classList.remove('grabbing');
-    
-    if (lives <= 0) {
-        gameOver('生命耗尽!');
-    }
-
+    if (lives <= 0) gameOver('生命耗尽!');
     setTimeout(() => { isInvincible = false; }, 500);
 }
 
-function gameOver(message) { /* ...此函数不变... */ gameState = 'over'; clearInterval(timerInterval); messageText.textContent = message; messageOverlay.classList.remove('hidden'); }
+function triggerOverheat() {
+    isBoosting = false;
+    gameState = 'stunned';
+    if (caughtDoll) dropCaughtDoll();
+    let flickerInterval, heatDropInterval;
+    stunIndicator.classList.remove('hidden');
+    flickerInterval = setInterval(() => {
+        claw.style.borderColor = claw.style.borderColor === 'rgb(255, 0, 0)' ? '#553322' : '#f00';
+        heatBar.style.background = heatBar.style.background === 'rgb(255, 77, 77)' ? 'linear-gradient(to top, rgb(243, 156, 18), rgb(241, 196, 15), rgb(230, 126, 34), rgb(211, 84, 0), rgb(192, 57, 43))' : 'rgb(255, 77, 77)';
+    }, 150);
+    heatDropInterval = setInterval(() => {
+        heat = Math.max(0, heat - (100 / (STUN_DURATION / 50)));
+        updateHeatBar();
+    }, 50);
+    setTimeout(() => {
+        clearInterval(flickerInterval);
+        clearInterval(heatDropInterval);
+        stunIndicator.classList.add('hidden');
+        heat = 0;
+        updateHeatBar();
+        claw.style.borderColor = '';
+        heatBar.style.background = '';
+        gameState = parseFloat(claw.style.bottom) < 90 ? 'retracting' : 'ready';
+    }, STUN_DURATION);
+}
 
-// 动态添加闪烁动画样式
-const styleSheet = document.createElement("style");
-styleSheet.innerText = `@keyframes flash { 0%, 100% { background-color: rgba(199, 0, 57, 0.3); } 50% { background-color: rgba(199, 0, 57, 0.7); }}`;
-document.head.appendChild(styleSheet);
+function gameOver(message) {
+    gameState = 'over';
+    clearInterval(timerInterval);
+    if (timeLeft <= 0 && score >= WIN_SCORE) {
+        showWinScreen();
+    } else {
+        messageText.textContent = message;
+        messageOverlay.classList.remove('hidden');
+    }
+}
 
-// 启动游戏
+function showWinScreen() {
+    winOverlay.classList.remove('hidden');
+    eggSelectionContainer.innerHTML = '';
+    rewardDisplay.classList.add('hidden');
+    winButtonsContainer.classList.add('hidden');
+    eggSelectionContainer.classList.remove('hidden');
+    winPrompt.classList.remove('hidden');
+
+    ['green', 'purple', 'surprise'].sort(() => Math.random() - 0.5).forEach(eggColor => {
+        const eggEl = document.createElement('div');
+        eggEl.className = `selectable-egg doll ${eggColor}`;
+        eggEl.addEventListener('click', () => openEgg(), { once: true });
+        eggSelectionContainer.appendChild(eggEl);
+    });
+}
+
+function openEgg() {
+    eggSelectionContainer.querySelectorAll('.selectable-egg').forEach(egg => {
+        egg.style.pointerEvents = 'none';
+        egg.style.opacity = '0.5';
+    });
+    winPrompt.classList.add('hidden');
+    rewardDisplay.classList.remove('hidden');
+    winButtonsContainer.classList.remove('hidden');
+
+    const commonAnimals = [{ name: "小绿龙", emoji: "🐲" }, { name: "紫仓鼠", emoji: "🐹" }, { name: "蓝企鹅", emoji: "🐧" }, { name: "粉红兔", emoji: "🐰" }, { name: "棕熊熊", emoji: "🐻" }];
+    const rareAnimal = { name: "✨黄金鸡✨", emoji: "🐥", rare: true };
+    const finalReward = Math.random() < 0.05 ? rareAnimal : commonAnimals[Math.floor(Math.random() * commonAnimals.length)];
+    
+    rewardAnimal.textContent = finalReward.emoji;
+    rewardName.textContent = finalReward.name;
+    rewardName.classList.toggle('rare', finalReward.rare);
+}
+
+// --- 工具函数 ---
+function updateUI() { timerDisplay.textContent = `时间: ${timeLeft}`; scoreDisplay.textContent = `金钱: $${Math.floor(score)}`; livesDisplay.textContent = '生命: ' + '♥ '.repeat(lives); }
+function updateHeatBar() { heatBar.style.height = `${heat}%`; }
+function createDolls() { const normalDolls = [{ type: 'normal', class: 'green', weight: 1.0, value: 80, size: 0.9 }, { type: 'normal', class: 'purple', weight: 1.8, value: 200, size: 1.2 }, { type: 'normal', class: 'green', weight: 1.2, value: 100, size: 1.0 }, ]; const specialDolls = [{ type: 'heavy', class: 'heavy', weight: 3.0, value: 500, size: 1.4 }, { type: 'time', class: 'time', weight: 0.8, value: 50, size: 0.8 }, { type: 'cleaner', class: 'cleaner', weight: 1.5, value: 150, size: 1.0 }, { type: 'surprise', class: 'surprise', weight: 1.0, value: 0, size: 1.0 }, ]; let dollTypes = []; for (let i = 0; i < 5; i++) { if (Math.random() < 0.7) { dollTypes.push(normalDolls[Math.floor(Math.random() * normalDolls.length)]); } else { dollTypes.push(specialDolls[Math.floor(Math.random() * specialDolls.length)]); } } dollTypes.forEach((type, index) => { const dollEl = document.createElement('div'); dollEl.classList.add('doll', type.class); const baseWidth = 50, baseHeight = 70; dollEl.style.width = `${baseWidth * type.size}px`; dollEl.style.height = `${baseHeight * type.size}px`; const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5)); dollEl.style.left = `${xPos}px`; playArea.appendChild(dollEl); dolls.push({ element: dollEl, type: type.type, weight: type.weight, value: type.value, isCaught: false }); }); }
+
+// 核心修复：重写 createBomb 函数
+function createBomb() {
+    const bombEl = document.createElement('div');
+    bombEl.classList.add('bomb');
+    const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300);
+    bombEl.style.top = `${randomTop}px`;
+    
+    const animationDuration = (6 + Math.random() * 4) + 's';
+    const animationName = Math.random() < 0.5 ? 'moveLeftToRight' : 'moveRightToLeft';
+    
+    // 直接应用预定义的动画
+    bombEl.style.animation = `${animationName} ${animationDuration} linear infinite alternate`;
+    
+    bombContainer.appendChild(bombEl);
+    bombs.push({ element: bombEl, isDestroyed: false });
+}
+function isColliding(rect1, rect2) { return !(rect1.right < rect2.left || rect1.left > rect2.right || rect1.bottom < rect2.top || rect1.top > rect2.bottom); }
+
+// --- 启动游戏 ---
 initGame();

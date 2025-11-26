@@ -16,8 +16,6 @@
             <div id="lives">生命: ♥ ♥ ♥</div>
         </div>
 
-        
-
         <!-- 游戏机主体 -->
         <div id="machine">
             <div class="machine-top">
@@ -33,36 +31,45 @@
                         <div class="claw-arm right"></div>
                     </div>
                 </div>
-
-                <!-- 炸弹容器 -->
-                <div id="bomb-container">
-                    <!-- 炸弹会由JS动态添加 -->
-                </div>
-
+                <div id="bomb-container"></div>
                 <!-- 玩偶会被JS动态添加 -->
             </div>
 
-            <!-- 底部区域被简化了 -->
             <div class="machine-bottom"></div>
         </div>
         
-        <!-- 新增：热度条UI -->
         <div id="heat-bar-container">
             <div id="heat-bar"></div>
         </div>
 
-        <!-- 游戏结束/提示画面 -->
+        <!-- 失败提示画面 -->
         <div id="message-overlay" class="hidden">
             <div id="message-text">游戏结束!</div>
-            <p>按 ESC 重新开始</p>
+            <button id="restart-button-lose" class="restart-button">重新开始</button>
         </div>
 
-        <!-- 新增：眩晕状态提示文字 -->
+        <!-- 眩晕状态提示文字 -->
         <div id="stun-indicator" class="hidden">
             <p>过热眩晕中...</p>
         </div>
-        
+    </div>
 
+    <!-- 胜利结算与开奖界面 -->
+    <div id="win-overlay" class="hidden">
+        <h2>胜利!</h2>
+        <p id="win-prompt">请选择一个幸运彩蛋来开启奖励！</p>
+        <div id="egg-selection-container">
+            <!-- JS 会在这里动态添加彩蛋 -->
+        </div>
+        <div id="reward-display" class="hidden">
+            <h3>你获得了:</h3>
+            <div id="reward-animal"></div>
+            <p id="reward-name"></p>
+        </div>
+        <div id="win-buttons-container" class="hidden">
+            <button class="win-button">查看图鉴</button>
+            <button id="restart-button-win" class="win-button restart-button">再来一局</button>
+        </div>
     </div>
 
     <script src="script.js" defer></script>
