@@ -16,7 +16,7 @@ const messageText = document.getElementById('message-text');
 let gameState = 'ready'; // ready, aiming, dropping, retracting, caught, stunned, over
 let score = 0;
 let lives = 3;
-let timeLeft = 60;
+let timeLeft; // 以秒为单位，每关时间，值在initGame中初始化
 let timerInterval;
 let heat = 0; // 热度值 0-100
 
@@ -30,8 +30,8 @@ let isAiming = false;
 let isBoosting = false;
 
 // --- 游戏参数配置 ---
-const CLAW_SPEED_DROP = 7; // 提高下落速度，更爽快
-const CLAW_SPEED_RETRACT_EMPTY = 6;
+const CLAW_SPEED_DROP = 15; // 提高下落速度，更爽快
+const CLAW_SPEED_RETRACT_EMPTY = 15;
 const CLAW_SPEED_RETRACT_BASE = 4;
 const BOOST_MULTIPLIER = 3.0; // 加速倍率
 const HEAT_INCREASE_RATE = 80; // 每秒增加的热度
@@ -95,7 +95,7 @@ function initGame() {
     gameState = 'ready';
     score = 0;
     lives = 3;
-    timeLeft = 60;
+    timeLeft = 30;
     heat = 0;
     updateHeatBar();
 
@@ -154,8 +154,33 @@ function updateHeatBar() {
     heatBar.style.height = `${heat}%`;
 }
 
-function createDolls() { /* ...此函数不变，可以复制你之前的版本... */ 
-    const dollTypes = [{ class: 'green', weight: 1.0, value: 80,  size: 0.9 },{ class: 'purple', weight: 1.8, value: 200, size: 1.2 },{ class: 'green', weight: 1.2, value: 100, size: 1.0 },{ class: 'purple', weight: 2.0, value: 250, size: 1.3 },{ class: 'green', weight: 1.5, value: 150, size: 1.1 },];
+function createDolls() {
+    // 彩蛋池
+    const normalDolls = [
+        { type: 'normal', class: 'green', weight: 1.0, value: 80,  size: 0.9 },
+        { type: 'normal', class: 'purple', weight: 1.8, value: 200, size: 1.2 },
+        { type: 'normal', class: 'green', weight: 1.2, value: 100, size: 1.0 },
+    ];
+    const specialDolls = [
+        { type: 'heavy', class: 'heavy', weight: 3.0, value: 500, size: 1.4 },
+        { type: 'time', class: 'time', weight: 0.8, value: 50, size: 0.8 },
+        { type: 'cleaner', class: 'cleaner', weight: 1.5, value: 150, size: 1.0 },
+        { type: 'surprise', class: 'surprise', weight: 1.0, value: 0, size: 1.0 }, // 价值在抓到时决定
+    ];
+
+    let dollTypes = [];
+    const totalDolls = 5;
+
+    // 随机生成一局的彩蛋组合
+    for (let i = 0; i < totalDolls; i++) {
+        // 70% 几率是普通蛋, 30% 几率是特殊蛋
+        if (Math.random() < 0.7) {
+            dollTypes.push(normalDolls[Math.floor(Math.random() * normalDolls.length)]);
+        } else {
+            dollTypes.push(specialDolls[Math.floor(Math.random() * specialDolls.length)]);
+        }
+    }
+
     dollTypes.forEach((type, index) => {
         const dollEl = document.createElement('div');
         dollEl.classList.add('doll', type.class);
@@ -165,9 +190,18 @@ function createDolls() { /* ...此函数不变，可以复制你之前的版本.
         const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5));
         dollEl.style.left = `${xPos}px`;
         playArea.appendChild(dollEl);
-        dolls.push({ element: dollEl, weight: type.weight, value: type.value, isCaught: false });
+        
+        // 将类型也存进去
+        dolls.push({ 
+            element: dollEl, 
+            type: type.type, 
+            weight: type.weight, 
+            value: type.value, 
+            isCaught: false 
+        });
     });
 }
+
 function createBomb() { /* ...此函数不变... */
     const bombEl = document.createElement('div');
     bombEl.classList.add('bomb');
@@ -247,8 +281,40 @@ function updateGame(deltaTime) {
         if (parseFloat(claw.style.bottom) >= 90) {
             claw.style.bottom = '90%';
             if (gameState === 'caught' && caughtDoll) {
-                score += caughtDoll.value;
-                createBomb();
+                let earnedValue = caughtDoll.value;
+
+                // 根据彩蛋类型触发特殊效果
+                switch(caughtDoll.type) {
+                    case 'time':
+                        timeLeft += 5;
+                        console.log("时间 +5!");
+                        break;
+                    case 'cleaner':
+                        bombs.forEach(bomb => {
+                            if (!bomb.isDestroyed) {
+                                bomb.isDestroyed = true;
+                                bomb.element.remove();
+                            }
+                        });
+                        console.log("清屏！");
+                        break;
+                    case 'surprise':
+                        // 50% 几率是惊喜, 50% 是惊吓
+                        if (Math.random() < 0.5) {
+                            earnedValue = 800; // 巨款！
+                            console.log("惊喜！获得800金！");
+                        } else {
+                            earnedValue = 1; // 一块钱...
+                            console.log("惊吓...只值1块钱。");
+                        }
+                        break;
+                    // 'heavy' 和 'normal' 没有特殊效果，只加分
+                }
+
+                score += earnedValue;
+                createBomb(); // 抓到任何东西都增加一个炸弹
+                
+                // 移除娃娃
                 dolls = dolls.filter(d => d.element !== caughtDoll.element);
                 caughtDoll.element.remove();
                 caughtDoll = null;
