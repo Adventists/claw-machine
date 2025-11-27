@@ -4,15 +4,8 @@ body { background-color: #1a1a1a; display: flex; justify-content: center; align-
 
 /* --- UI 面板 --- */
 #ui-panel { display: flex; justify-content: space-around; padding: 10px; background: #222; border-radius: 10px; margin-bottom: 10px; font-size: 1.2em; font-weight: bold; position: relative; z-index: 10; }
-#score-container {
-    display: flex;
-    align-items: center;
-}
-#score-target {
-    font-size: 0.8em;
-    color: #aaa;
-    margin-left: 5px;
-}
+#score-container { display: flex; align-items: center; }
+#score-target { font-size: 0.8em; color: #aaa; margin-left: 5px; }
 
 /* --- 游戏机样式 --- */
 #machine { width: 100%; height: 720px; background: linear-gradient(to bottom, #2a5a5b, #1e3e40); border: 8px solid #4a7c7d; border-radius: 40px; box-shadow: 0 0 20px rgba(137, 207, 240, 0.3), inset 0 0 15px rgba(0,0,0,0.5); display: flex; flex-direction: column; position: relative; }
@@ -47,6 +40,8 @@ body { background-color: #1a1a1a; display: flex; justify-content: center; align-
 #bomb-container { position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; }
 .bomb { width: 40px; height: 40px; background: red; border-radius: 50%; border: 3px solid black; box-shadow: 0 0 10px red; }
 .bomb::before { content: ''; position: absolute; width: 10px; height: 10px; background: #333; top: -5px; left: 15px; }
+@keyframes moveLeftToRight { from { left: 10px; } to { left: calc(100% - 50px); } }
+@keyframes moveRightToLeft { from { left: calc(100% - 50px); } to { left: 10px; } }
 
 /* --- 热度条 --- */
 #heat-bar-container { position: absolute; right: 20px; top: 200px; width: 20px; height: 300px; background-color: rgba(0, 0, 0, 0.5); border: 3px solid #ddd; border-radius: 10px; padding: 3px; z-index: 20; }
@@ -59,10 +54,40 @@ body { background-color: #1a1a1a; display: flex; justify-content: center; align-
 #stun-indicator { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px 40px; background: rgba(255, 0, 0, 0.8); color: white; font-size: 2em; font-weight: bold; border-radius: 15px; border: 3px solid white; text-shadow: 2px 2px 4px #000; z-index: 101; animation: pulse 1s infinite; }
 @keyframes pulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
 
+/* --- 新增：效果文字提示 --- */
+.effect-text {
+    position: absolute;
+    font-size: 1.8em;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 5px black;
+    pointer-events: none;
+    animation: float-up-and-fade 1.5s ease-out forwards;
+    z-index: 50;
+}
+@keyframes float-up-and-fade {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-80px); opacity: 0; }
+}
+
+/* --- 新增：被击中闪光动画 --- */
+@keyframes flash {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: rgba(255, 0, 0, 0.5); }
+}
+
 /* --- 胜利结算界面 --- */
 #win-overlay h2 { font-size: 4em; color: #f1c40f; text-shadow: 0 0 15px #f1c40f; }
-#egg-selection-container { display: flex; gap: 30px; margin-top: 30px; }
-.selectable-egg { width: 80px; height: 110px; border-radius: 50% / 40% 40% 60% 60%; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border: 4px solid #fff; }
+#egg-selection-container {
+    display: flex;
+    flex-wrap: wrap; /* 新增：允许子元素换行 */
+    justify-content: center; /* 新增：水平居中对齐所有蛋 */
+    gap: 20px; /* 调整间距 */
+    margin-top: 30px;
+    max-width: 80%; /* 新增：限制最大宽度，避免蛋排得太开 */
+}
+
+.selectable-egg { width: 80px; height: 110px; border-radius: 50% / 40% 40% 60% 60%; cursor: pointer; transition: all 0.3s ease; border: 4px solid #fff; position: relative; }
 .selectable-egg:hover { transform: scale(1.1); box-shadow: 0 0 20px #fff; }
 #reward-display { margin-top: 40px; display: flex; flex-direction: column; align-items: center; }
 #reward-animal { width: 150px; height: 150px; font-size: 100px; display: flex; justify-content: center; align-items: center; }
@@ -73,13 +98,6 @@ body { background-color: #1a1a1a; display: flex; justify-content: center; align-
 .win-button, .restart-button { padding: 12px 25px; font-size: 1.2em; font-weight: bold; color: white; background: #3498db; border: 2px solid #2980b9; border-radius: 10px; cursor: pointer; transition: background 0.2s; }
 .win-button:hover, .restart-button:hover { background: #2980b9; }
 
-/* 核心修复：预定义炸弹动画 */
-@keyframes moveLeftToRight {
-    from { left: 10px; }
-    to { left: calc(100% - 50px); }
-}
-
-@keyframes moveRightToLeft {
-    from { left: calc(100% - 50px); }
-    to { left: 10px; }
-}
+/* --- 底部操作提示栏 --- */
+#instruction-bar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.6); padding: 8px 20px; border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.5); z-index: 50; width: 80%; text-align: center; }
+#instruction-text { margin: 0; font-size: 1.1em; font-weight: bold; color: #fff; }
