@@ -34,10 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let timerInterval;
 
     // --- 游戏参数配置 (在这里调整游戏手感和难度) ---
-    const INITIAL_TIME = 60;
+    const INITIAL_TIME = 30;
     const WIN_SCORE = 100;
-    const CLAW_SPEED_DROP = 7;
-    const CLAW_SPEED_RETRACT_EMPTY = 6;
+    const CLAW_SPEED_DROP = 15;
+    const CLAW_SPEED_RETRACT_EMPTY = 8;
     const CLAW_SPEED_RETRACT_BASE = 4;
     const BOOST_MULTIPLIER = 3.0;
     const HEAT_INCREASE_RATE = 60;
