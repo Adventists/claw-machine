@@ -96,7 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(timerInterval);
 
         createDolls();
-        createCrystal();
+        createCrystal('fuel');
+        createCrystal('danger');
 
         clawAssembly.style.left = `calc(50% - ${CLAW_ASSEMBLY_WIDTH / 2}px)`;
         claw.style.bottom = '90%';
@@ -326,9 +327,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI() { timerDisplay.textContent = `时间: ${timeLeft}`; scoreDisplay.textContent = `金钱: $${Math.floor(score)}`; livesDisplay.textContent = '生命: ' + '♥ '.repeat(lives); scoreTargetDisplay.style.color = (score >= WIN_SCORE) ? '#f1c40f' : '#aaa'; }
     function updateBoostBar() { boostBar.style.opacity = fuel > 0 ? '1' : '0'; const fillPercent = fuel; boostBar.style.setProperty('--bar-width', `${fillPercent}%`); }
     function createDolls() { const normalDolls = [{ type: 'normal', class: 'green', weight: 1.0, value: 80, size: 0.9 }, { type: 'normal', class: 'purple', weight: 1.8, value: 200, size: 1.2 }, ]; const specialDolls = [{ type: 'heavy', class: 'heavy', weight: 3.0, value: 500, size: 1.4 }]; let dollTypes = []; for (let i = 0; i < 5; i++) { dollTypes.push({ ...(Math.random() < 0.8 ? normalDolls[Math.floor(Math.random() * normalDolls.length)] : specialDolls[0]) }); } dollTypes.forEach((type, index) => { const dollEl = document.createElement('div'); dollEl.classList.add('doll', type.class); const baseWidth = 50, baseHeight = 70; dollEl.style.width = `${baseWidth * type.size}px`; dollEl.style.height = `${baseHeight * type.size}px`; const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5)); dollEl.style.left = `${xPos}px`; playArea.appendChild(dollEl); dolls.push({ element: dollEl, type: type.type, weight: type.weight, value: type.value, isCaught: false }); }); }
-    function createCrystal() { 
+    function createCrystal(forceType = null) { 
         const crystalEl = document.createElement('div'); 
-        const type = Math.random() < 0.3 ? 'danger' : 'fuel'; // 30% 概率是危险水晶
+        let type;
+        if (forceType) {
+            type = forceType;
+        } else {
+            type = Math.random() < 0.3 ? 'danger' : 'fuel'; // 30% 概率是危险水晶
+        }
         crystalEl.classList.add('crystal', type); 
         
         const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300); 
