@@ -20,7 +20,7 @@ body { background-color: #1a1a1a; display: flex; justify-content: center; align-
 #play-area::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%); transform: skewX(-25deg); }
 
 /* --- 游戏元素 --- */
-#claw-assembly, #claw, .doll, .buff { position: absolute; }
+#claw-assembly, #claw, .doll, .crystal { position: absolute; }
 #claw-assembly { top: 0; left: 50%; width: 60px; transform: translateX(-50%); height: 100%; }
 #claw { bottom: 90%; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; background: #f0a080; border: 3px solid #553322; border-radius: 5px; }
 #claw::before { content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); width: 4px; height: 500px; background: #555; }
@@ -33,11 +33,35 @@ body { background-color: #1a1a1a; display: flex; justify-content: center; align-
 .doll.green { background: linear-gradient(to top, #6ab04c, #badc58); }
 .doll.purple { background: linear-gradient(to top, #9b59b6, #be90d4); }
 .doll.heavy { background: linear-gradient(to top, #7f8c8d, #95a5a6); border: 4px solid #34495e; }
-.buff { width: 40px; height: 40px; background: #00d2ff; border: 3px solid white; box-shadow: 0 0 15px #00d2ff, 0 0 25px #00d2ff; transform: rotate(45deg); animation-duration: 1.5s; animation-iteration-count: infinite; }
-.buff::before { content: '⚡'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 24px; color: white; }
+
+/* 水晶/Buff 样式 */
+.crystal { width: 40px; height: 40px; border: 3px solid white; transform: rotate(45deg); animation-duration: 1.5s; animation-iteration-count: infinite; }
+.crystal.fuel { background: #00d2ff; box-shadow: 0 0 15px #00d2ff, 0 0 25px #00d2ff; }
+.crystal.danger { background: #ff4d4d; box-shadow: 0 0 15px #ff4d4d, 0 0 25px #ff4d4d; }
+
+.crystal::before { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 24px; color: white; }
+.crystal.fuel::before { content: '⚡'; }
+.crystal.danger::before { content: '☠️'; }
+
 @keyframes moveLeftToRight { from { left: 10px; } to { left: calc(100% - 50px); } }
 @keyframes moveRightToLeft { from { left: calc(100% - 50px); } to { left: 10px; } }
 @keyframes buff-pulse { 0%, 100% { transform: rotate(45deg) scale(1); } 50% { transform: rotate(45deg) scale(1.1); } }
+
+/* 伤害闪烁效果 */
+.flash-effect::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: red;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+    animation: flash 0.5s ease-out;
+}
+@keyframes flash {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 0.5; }
+}
 
 /* --- 抓钩燃料条 --- */
 #boost-bar { position: absolute; top: -12px; left: -5px; width: calc(100% + 10px); height: 8px; background-color: #333; border: 2px solid #fff; border-radius: 4px; overflow: hidden; opacity: 0; transition: opacity 0.3s; }

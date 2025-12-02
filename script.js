@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const playArea = document.getElementById('play-area');
     const clawAssembly = document.getElementById('claw-assembly');
     const claw = document.getElementById('claw');
-    const buffContainer = document.getElementById('buff-container');
+    const buffContainer = document.getElementById('buff-container'); // 虽然html里可能叫buff-container，但我们现在逻辑上叫crystals
     const boostBar = document.getElementById('boost-bar');
     const instructionText = document.getElementById('instruction-text');
     const timerDisplay = document.getElementById('timer');
@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 游戏状态变量 ---
     let gameState, score, lives, timeLeft, fuel;
-    let dolls, buffs, caughtDoll;
+    let dolls, crystals, caughtDoll;
     let isAiming, isBoosting;
     let caughtDollsHistory;
     let timerInterval;
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initGame() {
         gameState = 'ready';
         score = 0; lives = 3; timeLeft = INITIAL_TIME; fuel = 0;
-        dolls = []; buffs = []; caughtDoll = null;
+        dolls = []; crystals = []; caughtDoll = null;
         isAiming = false; isBoosting = false;
         caughtDollsHistory = [];
 
@@ -92,11 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
         messageOverlay.classList.add('hidden');
         winOverlay.classList.add('hidden');
 
-        playArea.querySelectorAll('.doll, .effect-text, .buff').forEach(el => el.remove());
+        playArea.querySelectorAll('.doll, .effect-text, .crystal, .buff').forEach(el => el.remove());
         clearInterval(timerInterval);
 
         createDolls();
-        createBuff();
+        createCrystal();
 
         clawAssembly.style.left = `calc(50% - ${CLAW_ASSEMBLY_WIDTH / 2}px)`;
         claw.style.bottom = '90%';
@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCaughtDoll() {
         caughtDollsHistory.push({ ...caughtDoll, class: caughtDoll.element.className.replace('doll', '').trim() });
         score += caughtDoll.value;
-        createBuff();
+        createCrystal();
         dolls = dolls.filter(d => d.element !== caughtDoll.element);
         caughtDoll.element.remove();
         caughtDoll = null;
@@ -178,18 +178,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkCollisions() {
         const clawRect = claw.getBoundingClientRect();
         
-        for (let i = buffs.length - 1; i >= 0; i--) {
-            const buff = buffs[i];
-            if (buff.isDestroyed) continue;
-            const buffRect = buff.element.getBoundingClientRect();
-            if (isColliding(clawRect, buffRect)) {
-                fuel = FUEL_FROM_BUFF;
-                updateBoostBar();
-                buff.isDestroyed = true;
-                buff.element.remove();
-                buffs.splice(i, 1);
-                showEffectText('燃料补充!');
-                return;
+        // 与水晶碰撞
+        for (let i = crystals.length - 1; i >= 0; i--) {
+            const crystal = crystals[i];
+            if (crystal.isDestroyed) continue;
+            const crystalRect = crystal.element.getBoundingClientRect();
+            
+            if (isColliding(clawRect, crystalRect)) {
+                // 无论哪种类型，碰到都会销毁
+                crystal.isDestroyed = true;
+                crystal.element.remove();
+                crystals.splice(i, 1);
+
+                // 判断水晶类型
+                if (crystal.type === 'fuel') {
+                    fuel = FUEL_FROM_BUFF;
+                    updateBoostBar();
+                    showEffectText('燃料补充!');
+                } else if (crystal.type === 'danger') {
+                    loseLife();
+                    return; // 立即返回，因为可能已经触发了惩罚
+                }
             }
         }
 
@@ -202,6 +211,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             }
+        }
+    }
+    
+    function dropCaughtDoll() {
+        if (!caughtDoll) return;
+        claw.classList.remove('grabbing');
+        caughtDoll.isCaught = false;
+        // 让娃娃简单地掉下去或者重置，这里简化为移除当前抓取的（视为丢失）
+        // 为了视觉效果，可以让它掉落，但目前逻辑简单处理：放回原位或直接丢失
+        // 根据需求"如果爪子抓着蛋，那么蛋会掉"，我们让它脱离爪子
+        // 简单实现：让它回到初始位置或者直接销毁
+        // 考虑到游戏性，直接销毁比较惩罚性；放回原位比较合理
+        // 但由于没有记录原位，且物理模拟复杂，这里我们选择让它"消失"并提示
+        caughtDoll.element.remove();
+        dolls = dolls.filter(d => d.element !== caughtDoll.element); // 从数组中移除
+        caughtDoll = null;
+        showEffectText('哎呀！掉了！');
+    }
+
+    function loseLife() {
+        lives--;
+        updateUI();
+        
+        // 屏幕闪烁效果
+        gameContainer.classList.add('flash-effect');
+        setTimeout(() => {
+            gameContainer.classList.remove('flash-effect');
+        }, 500);
+
+        if (caughtDoll) {
+            dropCaughtDoll();
+        }
+
+        if (lives <= 0) {
+            gameOver('生命耗尽!');
+        } else {
+            showEffectText('生命 -1');
         }
     }
     
@@ -276,7 +322,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI() { timerDisplay.textContent = `时间: ${timeLeft}`; scoreDisplay.textContent = `金钱: $${Math.floor(score)}`; livesDisplay.textContent = '生命: ' + '♥ '.repeat(lives); scoreTargetDisplay.style.color = (score >= WIN_SCORE) ? '#f1c40f' : '#aaa'; }
     function updateBoostBar() { boostBar.style.opacity = fuel > 0 ? '1' : '0'; const fillPercent = fuel; boostBar.style.setProperty('--bar-width', `${fillPercent}%`); }
     function createDolls() { const normalDolls = [{ type: 'normal', class: 'green', weight: 1.0, value: 80, size: 0.9 }, { type: 'normal', class: 'purple', weight: 1.8, value: 200, size: 1.2 }, ]; const specialDolls = [{ type: 'heavy', class: 'heavy', weight: 3.0, value: 500, size: 1.4 }]; let dollTypes = []; for (let i = 0; i < 5; i++) { dollTypes.push({ ...(Math.random() < 0.8 ? normalDolls[Math.floor(Math.random() * normalDolls.length)] : specialDolls[0]) }); } dollTypes.forEach((type, index) => { const dollEl = document.createElement('div'); dollEl.classList.add('doll', type.class); const baseWidth = 50, baseHeight = 70; dollEl.style.width = `${baseWidth * type.size}px`; dollEl.style.height = `${baseHeight * type.size}px`; const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5)); dollEl.style.left = `${xPos}px`; playArea.appendChild(dollEl); dolls.push({ element: dollEl, type: type.type, weight: type.weight, value: type.value, isCaught: false }); }); }
-    function createBuff() { const buffEl = document.createElement('div'); buffEl.classList.add('buff'); const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300); buffEl.style.top = `${randomTop}px`; const animationDuration = (6 + Math.random() * 4) + 's'; const animationName = Math.random() < 0.5 ? 'moveLeftToRight' : 'moveRightToLeft'; buffEl.style.animation = `${animationName} ${animationDuration} linear infinite alternate, buff-pulse 1.5s infinite`; playArea.appendChild(buffEl); buffs.push({ element: buffEl, isDestroyed: false }); }
+    function createCrystal() { 
+        const crystalEl = document.createElement('div'); 
+        const type = Math.random() < 0.3 ? 'danger' : 'fuel'; // 30% 概率是危险水晶
+        crystalEl.classList.add('crystal', type); 
+        
+        const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300); 
+        crystalEl.style.top = `${randomTop}px`; 
+        
+        const animationDuration = (6 + Math.random() * 4) + 's'; 
+        const animationName = Math.random() < 0.5 ? 'moveLeftToRight' : 'moveRightToLeft'; 
+        crystalEl.style.animation = `${animationName} ${animationDuration} linear infinite alternate, buff-pulse 1.5s infinite`; 
+        
+        playArea.appendChild(crystalEl); 
+        crystals.push({ element: crystalEl, type: type, isDestroyed: false }); 
+    }
     function isColliding(rect1, rect2) { return !(rect1.right < rect2.left || rect1.left > rect2.right || rect1.bottom < rect2.top || rect1.top > rect2.bottom); }
     function showEffectText(text) { const textEl = document.createElement('div'); textEl.className = 'effect-text'; textEl.textContent = text; const clawRect = claw.getBoundingClientRect(); const playAreaRect = playArea.getBoundingClientRect(); textEl.style.left = `${clawRect.left - playAreaRect.left}px`; textEl.style.top = `${clawRect.top - playAreaRect.top - 40}px`; playArea.appendChild(textEl); setTimeout(() => { textEl.remove(); }, 1500); }
     function updateInstruction() { switch(gameState) { case 'ready': case 'aiming': instructionText.textContent = '按住拖动瞄准，松手下落'; break; case 'retracting': case 'caught': if (fuel > 0) { instructionText.textContent = '按住消耗燃料来加速！'; } else { instructionText.textContent = '寻找能量水晶补充燃料！'; } break; default: instructionText.textContent = ''; break; } }
