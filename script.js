@@ -288,10 +288,10 @@ document.addEventListener('DOMContentLoaded', () => {
         lives--;
         updateUI();
         
-        // 屏幕闪烁效果
-        gameContainer.classList.add('flash-effect');
+        // 屏幕闪烁效果 - 应用到 playArea 而不是整个 gameContainer
+        playArea.classList.add('flash-effect');
         setTimeout(() => {
-            gameContainer.classList.remove('flash-effect');
+            playArea.classList.remove('flash-effect');
         }, 500);
 
         if (caughtDoll) {
@@ -422,9 +422,9 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < 30; i++) {
             const coin = document.createElement('div');
             coin.className = 'coin';
-            coin.style.left = Math.random() * 100 + '%';
+            coin.style.left = Math.random() * 90 + 5 + '%'; // 避免太靠边
             coin.style.animationDuration = (1 + Math.random() * 2) + 's';
-            gameContainer.appendChild(coin);
+            playArea.appendChild(coin); // 确保加到 playArea 里，且 playArea overflow:hidden 会截断多余部分
             setTimeout(() => coin.remove(), 3000);
         }
     }
