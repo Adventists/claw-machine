@@ -25,8 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 游戏状态变量 ---
     let gameState, score, lives, timeLeft, fuel;
-    let dolls, buffs, caughtDoll;
-    let isAiming, isBoosting;
+    let dolls, crystals, caughtDoll, isInvincible; // 加回 isInvincible
+    let isAiming, isBoosting, isSuperClaw; // 修正语法并新增
     let caughtDollsHistory;
     let timerInterval;
 
@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const FUEL_FROM_BUFF = 100;            // 每个Buff提供的燃料值 (直接充满)
     const FUEL_CONSUME_RATE = 40;          // 按住加速时，每秒消耗的燃料
     const BOOST_SPEED_MULTIPLIER = 2.5;    // 固定加速倍率
+    const STUN_DURATION = 1500;            // 抓钩损坏后的维修时间（毫秒）
+    const GOLD_EGG_CHANCE = 0.1;           // 10% 概率出现金蛋
+    const RAINBOW_EGG_CHANCE = 0.15;       // 15% 概率出现彩虹蛋
 
     // --- 常量 ---
     const PLAY_AREA_WIDTH = playArea.offsetWidth;
@@ -76,13 +79,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- 游戏核心逻辑 ---
-    function dropClaw() { gameState = 'dropping'; }
+    function dropClaw() {
+        if (isSuperClaw) {
+            isSuperClaw = false;
+            claw.classList.remove('super-claw');
+            showEffectText('超级抓钩!', 'gold');
+        }
+        gameState = 'dropping';
+    }
 
     function initGame() {
         gameState = 'ready';
         score = 0; lives = 3; timeLeft = INITIAL_TIME; fuel = 0;
-        dolls = []; buffs = []; caughtDoll = null;
-        isAiming = false; isBoosting = false;
+        dolls = []; crystals = []; caughtDoll = null;
+        isInvincible = false;
+        isAiming = false; isBoosting = false; isSuperClaw = false;
         caughtDollsHistory = [];
 
         updateBoostBar();
@@ -92,15 +103,17 @@ document.addEventListener('DOMContentLoaded', () => {
         messageOverlay.classList.add('hidden');
         winOverlay.classList.add('hidden');
 
-        playArea.querySelectorAll('.doll, .effect-text, .buff').forEach(el => el.remove());
+        playArea.querySelectorAll('.doll, .effect-text, .crystal').forEach(el => el.remove());
         clearInterval(timerInterval);
 
         createDolls();
-        createBuff();
+        createCrystals(2);
 
         clawAssembly.style.left = `calc(50% - ${CLAW_ASSEMBLY_WIDTH / 2}px)`;
         claw.style.bottom = '90%';
         claw.classList.remove('grabbing');
+        claw.classList.remove('super-claw');
+
 
         timerInterval = setInterval(() => {
             if (gameState !== 'over') {
@@ -158,7 +171,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (currentBottom >= 90 && gameState !== 'dropping') {
                 claw.style.bottom = '90%';
-                if (caughtDoll) handleCaughtDoll();
+
+                // 超级抓钩结算
+                if (caughtDollsHistory.length > 0 && !caughtDoll) { // 检查是否有超级抓钩抓到的蛋
+                    let superClawScore = 0;
+                    caughtDollsHistory.forEach(d => superClawScore += d.value);
+                    score += superClawScore;
+                    showEffectText(`+$${superClawScore}!`, 'gold');
+                } 
+                // 普通抓钩结算
+                else if (caughtDoll) {
+                    handleCaughtDoll();
+                }
+                
                 gameState = 'ready';
                 claw.classList.remove('grabbing');
                 updateUI();
@@ -168,8 +193,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleCaughtDoll() {
         caughtDollsHistory.push({ ...caughtDoll, class: caughtDoll.element.className.replace('doll', '').trim() });
-        score += caughtDoll.value;
-        createBuff();
+        let earnedValue = caughtDoll.value;
+
+        switch (caughtDoll.type) {
+            case 'gold-egg':
+                showEffectText('全屏爆金币!', 'gold');
+                dolls.forEach(d => {
+                    if (!d.isCaught && d.element.style.display !== 'none') {
+                        earnedValue += d.value;
+                    }
+                });
+                break;
+            case 'rainbow-egg':
+                showEffectText('超级抓钩已准备!', 'special');
+                isSuperClaw = true;
+                claw.classList.add('super-claw');
+                break;
+        }
+
+        score += earnedValue;
+        createCrystals(1);
         dolls = dolls.filter(d => d.element !== caughtDoll.element);
         caughtDoll.element.remove();
         caughtDoll = null;
@@ -178,22 +221,41 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkCollisions() {
         const clawRect = claw.getBoundingClientRect();
         
-        for (let i = buffs.length - 1; i >= 0; i--) {
-            const buff = buffs[i];
-            if (buff.isDestroyed) continue;
-            const buffRect = buff.element.getBoundingClientRect();
-            if (isColliding(clawRect, buffRect)) {
-                fuel = FUEL_FROM_BUFF;
-                updateBoostBar();
-                buff.isDestroyed = true;
-                buff.element.remove();
-                buffs.splice(i, 1);
-                showEffectText('燃料补充!');
-                return;
+        // 与水晶碰撞
+        for (let i = crystals.length - 1; i >= 0; i--) {
+            const crystal = crystals[i];
+            if (crystal.isDestroyed) continue;
+            const crystalRect = crystal.element.getBoundingClientRect();
+            if (isColliding(clawRect, crystalRect)) {
+                if (crystal.type === 'fuel') {
+                    fuel = FUEL_FROM_BUFF;
+                    updateBoostBar();
+                    showEffectText('燃料补充!', 'info');
+                } else if (crystal.type === 'danger' && (gameState === 'retracting' || gameState === 'caught')) {
+                    triggerClawDamage();
+                    return; // 立即返回
+                }
+                crystal.isDestroyed = true;
+                crystal.element.remove();
+                crystals.splice(i, 1);
             }
         }
 
-        if (gameState === 'dropping') {
+        if (isSuperClaw && gameState === 'dropping') {
+            // 超级抓钩的特殊碰撞检测
+            for (const doll of dolls) {
+                if (doll.isCaught) continue;
+                const dollRect = doll.element.getBoundingClientRect();
+                if (isColliding(clawRect, dollRect)) {
+                    doll.isCaught = true;
+                    showEffectText('吸附!', 'special');
+                    doll.element.style.display = 'none';
+                    // 直接计入历史，因为超级抓钩不会失败
+                    caughtDollsHistory.push({ ...doll, class: doll.element.className.replace('doll', '').trim() });
+                }
+            }
+        } else if (gameState === 'dropping') {
+            // 普通与玩偶碰撞
             for (const doll of dolls) {
                 if (doll.isCaught) continue;
                 const dollRect = doll.element.getBoundingClientRect();
@@ -218,11 +280,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function gameOver(message) {
         gameState = 'over';
         clearInterval(timerInterval);
-        if (timeLeft <= 0 && score >= WIN_SCORE) {
-            showWinScreen();
-        } else {
-            messageText.textContent = message;
-            messageOverlay.classList.remove('hidden');
+        // 只在时间到时判断胜负
+        if (timeLeft <= 0) {
+            if (score >= WIN_SCORE) {
+                showWinScreen();
+            } else {
+                messageText.textContent = message;
+                messageOverlay.classList.remove('hidden');
+            }
         }
     }
 
@@ -275,10 +340,121 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 工具函数 ---
     function updateUI() { timerDisplay.textContent = `时间: ${timeLeft}`; scoreDisplay.textContent = `金钱: $${Math.floor(score)}`; livesDisplay.textContent = '生命: ' + '♥ '.repeat(lives); scoreTargetDisplay.style.color = (score >= WIN_SCORE) ? '#f1c40f' : '#aaa'; }
     function updateBoostBar() { boostBar.style.opacity = fuel > 0 ? '1' : '0'; const fillPercent = fuel; boostBar.style.setProperty('--bar-width', `${fillPercent}%`); }
-    function createDolls() { const normalDolls = [{ type: 'normal', class: 'green', weight: 1.0, value: 80, size: 0.9 }, { type: 'normal', class: 'purple', weight: 1.8, value: 200, size: 1.2 }, ]; const specialDolls = [{ type: 'heavy', class: 'heavy', weight: 3.0, value: 500, size: 1.4 }]; let dollTypes = []; for (let i = 0; i < 5; i++) { dollTypes.push({ ...(Math.random() < 0.8 ? normalDolls[Math.floor(Math.random() * normalDolls.length)] : specialDolls[0]) }); } dollTypes.forEach((type, index) => { const dollEl = document.createElement('div'); dollEl.classList.add('doll', type.class); const baseWidth = 50, baseHeight = 70; dollEl.style.width = `${baseWidth * type.size}px`; dollEl.style.height = `${baseHeight * type.size}px`; const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5)); dollEl.style.left = `${xPos}px`; playArea.appendChild(dollEl); dolls.push({ element: dollEl, type: type.type, weight: type.weight, value: type.value, isCaught: false }); }); }
-    function createBuff() { const buffEl = document.createElement('div'); buffEl.classList.add('buff'); const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300); buffEl.style.top = `${randomTop}px`; const animationDuration = (6 + Math.random() * 4) + 's'; const animationName = Math.random() < 0.5 ? 'moveLeftToRight' : 'moveRightToLeft'; buffEl.style.animation = `${animationName} ${animationDuration} linear infinite alternate, buff-pulse 1.5s infinite`; playArea.appendChild(buffEl); buffs.push({ element: buffEl, isDestroyed: false }); }
+
+    function createDolls(count = 10) {
+        dolls.forEach(d => d.element.remove());
+        dolls = [];
+        let dollPositions = [];
+        
+        for (let i = 0; i < count; i++) {
+            let type;
+            const rand = Math.random();
+            if (rand < GOLD_EGG_CHANCE) {
+                type = { type: 'gold-egg', class: 'gold-egg', weight: 3.0, value: 200, size: 1.2 };
+            } else if (rand < GOLD_EGG_CHANCE + RAINBOW_EGG_CHANCE) {
+                type = { type: 'rainbow-egg', class: 'rainbow-egg', weight: 1.5, value: 100, size: 1.0 };
+            } else {
+                type = { type: 'normal', class: Math.random() < 0.5 ? 'green' : 'purple', weight: 1.0, value: 50, size: 0.9 };
+            }
+
+            const dollEl = document.createElement('div');
+            dollEl.classList.add('doll', type.class);
+            const baseWidth = 50 * type.size;
+            const baseHeight = 70 * type.size;
+            dollEl.style.width = `${baseWidth}px`;
+            dollEl.style.height = `${baseHeight}px`;
+
+            let newPos, attempts = 0;
+            do {
+                const x = 10 + Math.random() * (PLAY_AREA_WIDTH - baseWidth - 20);
+                const y = 20 + Math.random() * 100;
+                newPos = { x, y, width: baseWidth, height: baseHeight };
+                attempts++;
+            } while (isOverlapping(newPos, dollPositions) && attempts < 20);
+            
+            dollPositions.push(newPos);
+            dollEl.style.left = `${newPos.x}px`;
+            dollEl.style.bottom = `${newPos.y}px`;
+
+            playArea.appendChild(dollEl);
+            dolls.push({ element: dollEl, ...type, isCaught: false });
+        }
+    }
+
+    // 在 createDolls 下方添加 isOverlapping 辅助函数
+    function isOverlapping(rect1, rects) {
+        for (const rect2 of rects) {
+            if (!(rect1.x + rect1.width < rect2.x || rect1.x > rect2.x + rect2.width ||
+                rect1.y + rect1.height < rect2.y || rect1.y > rect2.y + rect2.height)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function createCrystals(count = 1) {
+        for (let i = 0; i < count; i++) {
+            const crystalEl = document.createElement('div');
+            // 70% 概率是燃料，30% 是危险
+            const type = Math.random() < 0.7 ? 'fuel' : 'danger';
+            crystalEl.className = `crystal ${type}`;
+            
+            const randomTop = 100 + Math.random() * (PLAY_AREA_HEIGHT - 300);
+            crystalEl.style.top = `${randomTop}px`;
+            
+            const animationDuration = (6 + Math.random() * 4) + 's';
+            const animationName = Math.random() < 0.5 ? 'moveLeftToRight' : 'moveRightToLeft';
+            
+            crystalEl.style.animation = `${animationName} ${animationDuration} linear infinite alternate, buff-pulse 1.5s infinite`;
+            
+            playArea.appendChild(crystalEl);
+            // 注意：这里我们推送到 crystals 数组
+            crystals.push({ element: crystalEl, type: type, isDestroyed: false });
+        }
+    }
+
+    function triggerClawDamage() {
+        if (isInvincible) return;
+        isInvincible = true;
+
+        showEffectText('抓钩损坏!', 'danger');
+        playArea.style.animation = 'flash 0.3s ease-in-out';
+        setTimeout(() => { playArea.style.animation = ''; }, 300);
+
+        if (caughtDoll) {
+            dropCaughtDoll();
+        }
+        
+        // 强制空抓回收，不再眩晕，只是中断操作
+        gameState = 'retracting';
+        claw.classList.remove('grabbing');
+        
+        // 在一段时间内无敌，防止连续触发
+        setTimeout(() => { isInvincible = false; }, 500);
+    }
+
     function isColliding(rect1, rect2) { return !(rect1.right < rect2.left || rect1.left > rect2.right || rect1.bottom < rect2.top || rect1.top > rect2.bottom); }
-    function showEffectText(text) { const textEl = document.createElement('div'); textEl.className = 'effect-text'; textEl.textContent = text; const clawRect = claw.getBoundingClientRect(); const playAreaRect = playArea.getBoundingClientRect(); textEl.style.left = `${clawRect.left - playAreaRect.left}px`; textEl.style.top = `${clawRect.top - playAreaRect.top - 40}px`; playArea.appendChild(textEl); setTimeout(() => { textEl.remove(); }, 1500); }
+    
+    function showEffectText(text, type = 'info') {
+        const textEl = document.createElement('div');
+        textEl.className = 'effect-text';
+        textEl.textContent = text;
+
+        switch(type) {
+            case 'gold': textEl.style.color = '#f1c40f'; break;
+            case 'danger': textEl.style.color = '#e74c3c'; break;
+            case 'special': textEl.style.color = '#3498db'; break;
+        }
+        
+        const clawRect = claw.getBoundingClientRect();
+        const playAreaRect = playArea.getBoundingClientRect();
+        textEl.style.left = `${clawRect.left - playAreaRect.left}px`;
+        textEl.style.top = `${clawRect.top - playAreaRect.top - 40}px`;
+        playArea.appendChild(textEl);
+        
+        setTimeout(() => { textEl.remove(); }, 1500);
+    }
+
     function updateInstruction() { switch(gameState) { case 'ready': case 'aiming': instructionText.textContent = '按住拖动瞄准，松手下落'; break; case 'retracting': case 'caught': if (fuel > 0) { instructionText.textContent = '按住消耗燃料来加速！'; } else { instructionText.textContent = '寻找能量水晶补充燃料！'; } break; default: instructionText.textContent = ''; break; } }
     
     // --- 启动游戏 ---
