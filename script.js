@@ -218,16 +218,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!caughtDoll) return;
         claw.classList.remove('grabbing');
         caughtDoll.isCaught = false;
-        // 让娃娃简单地掉下去或者重置，这里简化为移除当前抓取的（视为丢失）
-        // 为了视觉效果，可以让它掉落，但目前逻辑简单处理：放回原位或直接丢失
-        // 根据需求"如果爪子抓着蛋，那么蛋会掉"，我们让它脱离爪子
-        // 简单实现：让它回到初始位置或者直接销毁
-        // 考虑到游戏性，直接销毁比较惩罚性；放回原位比较合理
-        // 但由于没有记录原位，且物理模拟复杂，这里我们选择让它"消失"并提示
-        caughtDoll.element.remove();
-        dolls = dolls.filter(d => d.element !== caughtDoll.element); // 从数组中移除
+        
+        // 恢复到原始位置
+        caughtDoll.element.style.left = caughtDoll.originalLeft;
+        caughtDoll.element.style.bottom = caughtDoll.originalBottom;
+        caughtDoll.element.style.top = ''; // 清除抓取时设置的top
+
         caughtDoll = null;
-        showEffectText('哎呀！掉了！');
+        // 这里不再调用 showEffectText，由外部控制
     }
 
     function loseLife() {
@@ -242,12 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (caughtDoll) {
             dropCaughtDoll();
+            showEffectText('哎呀！掉了！', 1); // index 1, 显示在下方
         }
 
         if (lives <= 0) {
             gameOver('生命耗尽!');
         } else {
-            showEffectText('生命 -1');
+            showEffectText('生命 -1', 0); // index 0
         }
     }
     
@@ -256,6 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
         caughtDoll = doll;
         doll.isCaught = true;
         claw.classList.add('grabbing');
+
+        // 记录原始位置
+        doll.originalLeft = doll.element.style.left;
+        doll.originalBottom = doll.element.style.bottom || '20px'; // 如果CSS没设bottom，默认20px
+
         const clawRect = claw.getBoundingClientRect();
         const playAreaRect = playArea.getBoundingClientRect();
         doll.element.style.left = `${clawRect.left - playAreaRect.left + (clawRect.width - doll.element.offsetWidth) / 2}px`;
@@ -338,7 +342,24 @@ document.addEventListener('DOMContentLoaded', () => {
         crystals.push({ element: crystalEl, type: type, isDestroyed: false }); 
     }
     function isColliding(rect1, rect2) { return !(rect1.right < rect2.left || rect1.left > rect2.right || rect1.bottom < rect2.top || rect1.top > rect2.bottom); }
-    function showEffectText(text) { const textEl = document.createElement('div'); textEl.className = 'effect-text'; textEl.textContent = text; const clawRect = claw.getBoundingClientRect(); const playAreaRect = playArea.getBoundingClientRect(); textEl.style.left = `${clawRect.left - playAreaRect.left}px`; textEl.style.top = `${clawRect.top - playAreaRect.top - 40}px`; playArea.appendChild(textEl); setTimeout(() => { textEl.remove(); }, 1500); }
+    function showEffectText(text, offsetIndex = 0) { 
+        const textEl = document.createElement('div'); 
+        textEl.className = 'effect-text'; 
+        textEl.textContent = text; 
+        
+        const clawRect = claw.getBoundingClientRect(); 
+        const containerRect = gameContainer.getBoundingClientRect(); // 使用 gameContainer 作为参考系
+        
+        // 计算相对于 gameContainer 的位置
+        const left = clawRect.left - containerRect.left;
+        const top = clawRect.top - containerRect.top - 40 + (offsetIndex * 30); // 每个 offset 增加 30px 垂直距离
+        
+        textEl.style.left = `${left}px`; 
+        textEl.style.top = `${top}px`; 
+        
+        gameContainer.appendChild(textEl); // append 到 gameContainer 避免被 play-area 裁剪
+        setTimeout(() => { textEl.remove(); }, 1500); 
+    }
     function updateInstruction() { switch(gameState) { case 'ready': case 'aiming': instructionText.textContent = '按住拖动瞄准，松手下落'; break; case 'retracting': case 'caught': if (fuel > 0) { instructionText.textContent = '按住消耗燃料来加速！'; } else { instructionText.textContent = '寻找能量水晶补充燃料！'; } break; default: instructionText.textContent = ''; break; } }
     
     // --- 启动游戏 ---
