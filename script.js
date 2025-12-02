@@ -26,9 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 游戏状态变量 ---
     let gameState, score, lives, timeLeft, fuel;
     let dolls, crystals, caughtDoll;
-    let isAiming, isBoosting;
+    let isAiming, isBoosting, isFrenzyMode; // 新增 isFrenzyMode
     let caughtDollsHistory;
     let timerInterval;
+    let frenzyTimeout; // 用于清除狂热模式的定时器
 
     // --- 游戏参数配置 (在这里调整游戏手感和难度) ---
     const INITIAL_TIME = 30;                 // 初始游戏时间（秒）
@@ -39,6 +40,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const FUEL_FROM_BUFF = 100;            // 每个Buff提供的燃料值 (直接充满)
     const FUEL_CONSUME_RATE = 40;          // 按住加速时，每秒消耗的燃料
     const BOOST_SPEED_MULTIPLIER = 2.5;    // 固定加速倍率
+    const FRENZY_SPEED_MULTIPLIER = 2.0;   // 狂热模式速度倍率
+    
+    // --- 蛋种配置 ---
+    const DOLL_TYPES = {
+        green:   { weight: 1.0, value: 80, className: 'green', size: 0.9, probability: 0.3 },
+        purple:  { weight: 1.8, value: 200, className: 'purple', size: 1.2, probability: 0.2 },
+        heavy:   { weight: 3.0, value: 500, className: 'heavy', size: 1.4, probability: 0.15 },
+        gold:    { 
+            weight: 1.5, 
+            value: 500, 
+            className: 'gold', 
+            size: 1.1, 
+            probability: 0.1,
+            onCatch: () => { triggerCoinRain(); return "金币雨! +$500"; }
+        },
+        mystery: { 
+            weight: 1.5, 
+            value: 0, // 动态
+            className: 'mystery', 
+            size: 1.2, 
+            probability: 0.15,
+            onCatch: (dollInstance) => {
+                const val = Math.floor(Math.random() * 999) + 1;
+                dollInstance.value = val;
+                return `运气爆发! +$${val}`;
+            }
+        },
+        rainbow: { 
+            weight: 1.0, 
+            value: 150, 
+            className: 'rainbow', 
+            size: 1.0, 
+            probability: 0.1,
+            onCatch: () => { activateFrenzyMode(); return "狂热模式! 10秒无敌"; }
+        }
+    };
 
     // --- 常量 ---
     const PLAY_AREA_WIDTH = playArea.offsetWidth;
@@ -82,8 +119,10 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState = 'ready';
         score = 0; lives = 3; timeLeft = INITIAL_TIME; fuel = 0;
         dolls = []; crystals = []; caughtDoll = null;
-        isAiming = false; isBoosting = false;
+        isAiming = false; isBoosting = false; isFrenzyMode = false;
         caughtDollsHistory = [];
+        clearTimeout(frenzyTimeout);
+        gameContainer.classList.remove('frenzy-mode-active');
 
         updateBoostBar();
         scoreTargetDisplay.textContent = `/ $${WIN_SCORE}`;
@@ -92,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messageOverlay.classList.add('hidden');
         winOverlay.classList.add('hidden');
 
-        playArea.querySelectorAll('.doll, .effect-text, .crystal, .buff').forEach(el => el.remove());
+        playArea.querySelectorAll('.doll, .effect-text, .crystal, .buff, .coin').forEach(el => el.remove());
         clearInterval(timerInterval);
 
         createDolls();
@@ -140,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 speed = caughtDoll ? (CLAW_SPEED_RETRACT_BASE / caughtDoll.weight) : CLAW_SPEED_RETRACT_EMPTY;
                 if (isActuallyBoosting) speed *= BOOST_SPEED_MULTIPLIER;
+                if (isFrenzyMode) speed *= FRENZY_SPEED_MULTIPLIER;
             }
 
             let currentBottom = parseFloat(claw.style.bottom);
@@ -168,12 +208,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleCaughtDoll() {
+        const dollTypeConfig = Object.values(DOLL_TYPES).find(t => caughtDoll.element.classList.contains(t.className));
+        let effectText = `+$${caughtDoll.value}`;
+        
+        // 处理特殊回调
+        if (dollTypeConfig && dollTypeConfig.onCatch) {
+            const customText = dollTypeConfig.onCatch(caughtDoll);
+            if (customText) effectText = customText;
+        }
+
         caughtDollsHistory.push({ ...caughtDoll, class: caughtDoll.element.className.replace('doll', '').trim() });
         score += caughtDoll.value;
         createCrystal();
         dolls = dolls.filter(d => d.element !== caughtDoll.element);
         caughtDoll.element.remove();
         caughtDoll = null;
+        
+        showEffectText(effectText);
     }
 
     function checkCollisions() {
@@ -197,8 +248,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateBoostBar();
                     showEffectText('燃料补充!');
                 } else if (crystal.type === 'danger') {
-                    loseLife();
-                    return; // 立即返回，因为可能已经触发了惩罚
+                    if (isFrenzyMode) {
+                        showEffectText('无敌粉碎!');
+                    } else {
+                        loseLife();
+                        return; // 立即返回，因为可能已经触发了惩罚
+                    }
                 }
             }
         }
@@ -326,7 +381,67 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 工具函数 ---
     function updateUI() { timerDisplay.textContent = `时间: ${timeLeft}`; scoreDisplay.textContent = `金钱: $${Math.floor(score)}`; livesDisplay.textContent = '生命: ' + '♥ '.repeat(lives); scoreTargetDisplay.style.color = (score >= WIN_SCORE) ? '#f1c40f' : '#aaa'; }
     function updateBoostBar() { boostBar.style.opacity = fuel > 0 ? '1' : '0'; const fillPercent = fuel; boostBar.style.setProperty('--bar-width', `${fillPercent}%`); }
-    function createDolls() { const normalDolls = [{ type: 'normal', class: 'green', weight: 1.0, value: 80, size: 0.9 }, { type: 'normal', class: 'purple', weight: 1.8, value: 200, size: 1.2 }, ]; const specialDolls = [{ type: 'heavy', class: 'heavy', weight: 3.0, value: 500, size: 1.4 }]; let dollTypes = []; for (let i = 0; i < 5; i++) { dollTypes.push({ ...(Math.random() < 0.8 ? normalDolls[Math.floor(Math.random() * normalDolls.length)] : specialDolls[0]) }); } dollTypes.forEach((type, index) => { const dollEl = document.createElement('div'); dollEl.classList.add('doll', type.class); const baseWidth = 50, baseHeight = 70; dollEl.style.width = `${baseWidth * type.size}px`; dollEl.style.height = `${baseHeight * type.size}px`; const xPos = 20 + index * (PLAY_AREA_WIDTH / (dollTypes.length - 0.5)); dollEl.style.left = `${xPos}px`; playArea.appendChild(dollEl); dolls.push({ element: dollEl, type: type.type, weight: type.weight, value: type.value, isCaught: false }); }); }
+    function createDolls() {
+        const types = Object.keys(DOLL_TYPES);
+        // 根据概率生成
+        let selectedTypes = [];
+        for (let i = 0; i < 5; i++) {
+            const rand = Math.random();
+            let cumulativeProb = 0;
+            let selected = null;
+            for (const typeKey of types) {
+                cumulativeProb += DOLL_TYPES[typeKey].probability;
+                if (rand < cumulativeProb) {
+                    selected = DOLL_TYPES[typeKey];
+                    break;
+                }
+            }
+            if (!selected) selected = DOLL_TYPES.green; // fallback
+            selectedTypes.push(selected);
+        }
+
+        selectedTypes.forEach((type, index) => {
+            const dollEl = document.createElement('div');
+            dollEl.classList.add('doll', type.className);
+            const baseWidth = 50, baseHeight = 70;
+            dollEl.style.width = `${baseWidth * type.size}px`;
+            dollEl.style.height = `${baseHeight * type.size}px`;
+            const xPos = 20 + index * (PLAY_AREA_WIDTH / (selectedTypes.length - 0.5));
+            dollEl.style.left = `${xPos}px`;
+            playArea.appendChild(dollEl);
+            dolls.push({ 
+                element: dollEl, 
+                weight: type.weight, 
+                value: type.value, 
+                isCaught: false 
+            });
+        });
+    }
+
+    function triggerCoinRain() {
+        for (let i = 0; i < 30; i++) {
+            const coin = document.createElement('div');
+            coin.className = 'coin';
+            coin.style.left = Math.random() * 100 + '%';
+            coin.style.animationDuration = (1 + Math.random() * 2) + 's';
+            gameContainer.appendChild(coin);
+            setTimeout(() => coin.remove(), 3000);
+        }
+    }
+
+    function activateFrenzyMode() {
+        isFrenzyMode = true;
+        gameContainer.classList.add('frenzy-mode-active');
+        showEffectText("狂热模式开启!", 1);
+        
+        clearTimeout(frenzyTimeout);
+        frenzyTimeout = setTimeout(() => {
+            isFrenzyMode = false;
+            gameContainer.classList.remove('frenzy-mode-active');
+            showEffectText("狂热模式结束", 1);
+        }, 10000);
+    }
+
     function createCrystal(forceType = null) { 
         const crystalEl = document.createElement('div'); 
         let type;
