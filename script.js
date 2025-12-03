@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const winButtonsContainer = document.getElementById('win-buttons-container');
     const surplusDisplay = document.getElementById('surplus-display');
     const continueButton = document.getElementById('continue-button');
+    const galleryOverlay = document.getElementById('gallery-overlay');
+    const galleryGrid = document.getElementById('gallery-grid');
+    const galleryBackButton = document.getElementById('gallery-back-button');
 
     // --- 游戏参数配置 (在这里调整游戏手感和难度) ---
     const INITIAL_TIME = 30;                 // 初始游戏时间（秒）
@@ -48,6 +51,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let nextOpenCost = INITIAL_NEXT_OPEN_COST; // 下一次额外开蛋花费
     let openedEggIndices = []; // 已开启的蛋的索引
     
+    // --- 图鉴数据 ---
+    const collectionData = {
+        dragon: { id: 'dragon', name: "小绿龙", emoji: "🐲", count: 0, hint: "绿蛋中容易开出", desc: "抓钩初始速度+1%" },
+        hamster: { id: 'hamster', name: "紫仓鼠", emoji: "🐹", count: 0, hint: "紫蛋中容易开出", desc: "重量偏重?" },
+        bear: { id: 'bear', name: "棕熊熊", emoji: "🐻", count: 0, hint: "重蛋中容易开出", desc: "重量中等" },
+        rabbit: { id: 'rabbit', name: "粉红兔", emoji: "🐰", count: 0, hint: "彩虹蛋中容易开出", desc: "抓钩初始速度+1%" },
+        penguin: { id: 'penguin', name: "蓝企鹅", emoji: "🐧", count: 0, hint: "灰蛋中容易开出", desc: "重量偏重?" },
+        chicken: { id: 'chicken', name: "黄金鸡", emoji: "🐥", count: 0, hint: "金蛋中容易开出", desc: "重量偏重?" }
+    };
+
     // --- 蛋种配置 ---
     const DOLL_TYPES = {
         green:   { weight: 1.0, value: 80, className: 'green', size: 0.9, probability: 0.3 },
@@ -97,6 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('touchend', handlePointerUp);
     document.querySelectorAll('.restart-button').forEach(btn => btn.addEventListener('click', initGame));
     continueButton.addEventListener('click', handleContinueOpen);
+    document.querySelector('button.win-button:nth-child(2)').addEventListener('click', showGallery); // 绑定图鉴按钮
+    galleryBackButton.addEventListener('click', closeGallery);
     document.addEventListener('keydown', (e) => { if (e.code === 'Escape') initGame(); });
 
     function handlePointerDown(e) {
@@ -415,12 +430,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // 更新继续按钮状态
             updateContinueButtonState();
 
-            const commonAnimals = [{ name: "小绿龙", emoji: "🐲" }, { name: "紫仓鼠", emoji: "🐹" }, { name: "蓝企鹅", emoji: "🐧" }, { name: "粉红兔", emoji: "🐰" }, { name: "棕熊熊", emoji: "🐻" }];
-            const rareAnimal = { name: "✨黄金鸡✨", emoji: "🐥", rare: true };
-            const finalReward = Math.random() < 0.05 ? rareAnimal : commonAnimals[Math.floor(Math.random() * commonAnimals.length)];
-            rewardAnimal.textContent = finalReward.emoji;
-            rewardName.textContent = finalReward.name;
-            rewardName.classList.toggle('rare', finalReward.rare);
+            // 根据概率掉落动物并更新图鉴
+            let animalKey;
+            const rand = Math.random();
+            
+            // 简单掉落逻辑：如果有rare属性则尝试掉落稀有，否则随机
+            // 这里为了演示图鉴，我们稍微关联一下蛋的颜色（虽然当前 openEgg 没有传入蛋的类型，我们可以随机假装一下，或者后续改进）
+            // 为了简化，我们直接随机，但确保更新 collectionData
+            const keys = Object.keys(collectionData);
+            // 黄金鸡稍微稀有一点
+            if (rand < 0.05) animalKey = 'chicken';
+            else animalKey = keys[Math.floor(Math.random() * (keys.length - 1))]; // 排除最后一个(chicken)再随机，或者直接全随机
+            
+            // 重新全随机逻辑，保持原有概率感
+            if (!animalKey) {
+                const commonKeys = ['dragon', 'hamster', 'penguin', 'rabbit', 'bear'];
+                animalKey = commonKeys[Math.floor(Math.random() * commonKeys.length)];
+            }
+
+            const animalData = collectionData[animalKey];
+            animalData.count++; // 增加收集数量
+            
+            rewardAnimal.textContent = animalData.emoji;
+            rewardName.textContent = animalData.name;
+            if (animalKey === 'chicken') {
+                rewardName.classList.add('rare');
+            } else {
+                rewardName.classList.remove('rare');
+            }
         }, 500);
     }
 
@@ -455,6 +492,48 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderEggs();
         }
+    }
+
+    // --- 图鉴功能 ---
+    function showGallery() {
+        renderGallery();
+        galleryOverlay.classList.remove('hidden');
+    }
+
+    function closeGallery() {
+        galleryOverlay.classList.add('hidden');
+    }
+
+    function renderGallery() {
+        galleryGrid.innerHTML = '';
+        
+        // 定义两列的顺序：左列 [龙, 仓鼠, 熊], 右列 [兔, 企鹅, 鸡]
+        const layoutOrder = ['dragon', 'rabbit', 'hamster', 'penguin', 'bear', 'chicken'];
+        
+        layoutOrder.forEach(key => {
+            const data = collectionData[key];
+            const item = document.createElement('div');
+            item.className = 'gallery-item';
+            if (data.count === 0) item.classList.add('locked');
+
+            const level = data.count > 0 ? Math.floor(data.count / 3) + 1 : 0;
+            
+            item.innerHTML = `
+                <div class="emoji">${data.emoji}</div>
+                <div class="info">
+                    ${data.count > 0 ? 
+                        `<div>已抓到: ${data.count}只</div>
+                         <div class="level">伙伴等级: ${level}级</div>
+                         <div class="desc">当前效果: ${data.desc}</div>` 
+                        : 
+                        `<div class="hint">尚未抓到</div>
+                         <div class="desc">${data.hint}</div>
+                         <div class="desc">重量偏重?</div>`
+                    }
+                </div>
+            `;
+            galleryGrid.appendChild(item);
+        });
     }
 
     // --- 工具函数 ---
