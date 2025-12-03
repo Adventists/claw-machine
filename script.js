@@ -53,12 +53,36 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- 图鉴数据 ---
     const collectionData = {
-        dragon: { id: 'dragon', name: "小绿龙", emoji: "🐲", count: 0, hint: "绿蛋中容易开出", desc: "抓钩初始速度+1%" },
-        hamster: { id: 'hamster', name: "紫仓鼠", emoji: "🐹", count: 0, hint: "紫蛋中容易开出", desc: "重量偏重?" },
-        bear: { id: 'bear', name: "棕熊熊", emoji: "🐻", count: 0, hint: "重蛋中容易开出", desc: "重量中等" },
-        rabbit: { id: 'rabbit', name: "粉红兔", emoji: "🐰", count: 0, hint: "彩虹蛋中容易开出", desc: "抓钩初始速度+1%" },
-        penguin: { id: 'penguin', name: "蓝企鹅", emoji: "🐧", count: 0, hint: "灰蛋中容易开出", desc: "重量偏重?" },
-        chicken: { id: 'chicken', name: "黄金鸡", emoji: "🐥", count: 0, hint: "金蛋中容易开出", desc: "重量偏重?" }
+        dragon: { 
+            id: 'dragon', name: "小绿龙", emoji: "🐲", count: 0, hint: "绿蛋中容易开出", 
+            getLevel: (c) => Math.floor(c / 3) + 1,
+            getDesc: (l) => `抓钩速度 +${l}%` 
+        },
+        hamster: { 
+            id: 'hamster', name: "紫仓鼠", emoji: "🐹", count: 0, hint: "紫蛋中容易开出", 
+            getLevel: (c) => Math.floor(c / 5) + 1,
+            getDesc: (l) => `结算金币 +${l * 2}%` 
+        },
+        bear: { 
+            id: 'bear', name: "棕熊熊", emoji: "🐻", count: 0, hint: "重蛋中容易开出", 
+            getLevel: (c) => Math.floor(c / 3) + 1,
+            getDesc: (l) => `重物抓取速度 +${l * 5}%` 
+        },
+        rabbit: { 
+            id: 'rabbit', name: "粉红兔", emoji: "🐰", count: 0, hint: "彩虹蛋中容易开出", 
+            getLevel: (c) => Math.floor(c / 2) + 1,
+            getDesc: (l) => `狂热模式时长 +${l}秒` 
+        },
+        penguin: { 
+            id: 'penguin', name: "蓝企鹅", emoji: "🐧", count: 0, hint: "灰蛋中容易开出", 
+            getLevel: (c) => Math.floor(c / 4) + 1,
+            getDesc: (l) => `冰冻时间冷却 -${l}%` 
+        },
+        chicken: { 
+            id: 'chicken', name: "黄金鸡", emoji: "🐥", count: 0, hint: "金蛋中容易开出", 
+            getLevel: (c) => Math.floor(c / 1) , // 每只都升级
+            getDesc: (l) => `金币雨金币量 +${l * 10}%` 
+        }
     };
 
     // --- 蛋种配置 ---
@@ -516,7 +540,8 @@ document.addEventListener('DOMContentLoaded', () => {
             item.className = 'gallery-item';
             if (data.count === 0) item.classList.add('locked');
 
-            const level = data.count > 0 ? Math.floor(data.count / 3) + 1 : 0;
+            const level = data.count > 0 ? data.getLevel(data.count) : 0;
+            const descText = data.count > 0 ? data.getDesc(level) : "???";
             
             item.innerHTML = `
                 <div class="emoji">${data.emoji}</div>
@@ -524,11 +549,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${data.count > 0 ? 
                         `<div>已抓到: ${data.count}只</div>
                          <div class="level">伙伴等级: ${level}级</div>
-                         <div class="desc">当前效果: ${data.desc}</div>` 
+                         <div class="desc">当前效果: ${descText}</div>` 
                         : 
                         `<div class="hint">尚未抓到</div>
                          <div class="desc">${data.hint}</div>
-                         <div class="desc">重量偏重?</div>`
+                         <div class="desc">效果未知</div>`
                     }
                 </div>
             `;
