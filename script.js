@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const rewardAnimal = document.getElementById('reward-animal');
     const rewardName = document.getElementById('reward-name');
     const winButtonsContainer = document.getElementById('win-buttons-container');
+    const surplusDisplay = document.getElementById('surplus-display');
+    const continueButton = document.getElementById('continue-button');
 
     // --- 游戏状态变量 ---
     let gameState, score, lives, timeLeft, fuel;
@@ -30,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let caughtDollsHistory;
     let timerInterval;
     let frenzyTimeout; // 用于清除狂热模式的定时器
+    let surplusScore = 0; // 剩余收益
+    let nextOpenCost = 100; // 下一次额外开蛋花费
+    let openedEggIndices = []; // 已开启的蛋的索引
 
     // --- 游戏参数配置 (在这里调整游戏手感和难度) ---
     const INITIAL_TIME = 30;                 // 初始游戏时间（秒）
@@ -90,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('mouseup', handlePointerUp);
     document.addEventListener('touchend', handlePointerUp);
     document.querySelectorAll('.restart-button').forEach(btn => btn.addEventListener('click', initGame));
+    continueButton.addEventListener('click', handleContinueOpen);
     document.addEventListener('keydown', (e) => { if (e.code === 'Escape') initGame(); });
 
     function handlePointerDown(e) {
@@ -334,25 +340,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showWinScreen() {
         winOverlay.classList.remove('hidden');
-        eggSelectionContainer.innerHTML = '';
         rewardDisplay.classList.add('hidden');
         winButtonsContainer.classList.add('hidden');
         eggSelectionContainer.classList.remove('hidden');
         winPrompt.classList.remove('hidden');
         winPrompt.textContent = "恭喜！请选择一个战利品来开启最终奖励！";
+        
+        // 初始化胜利状态
+        surplusScore = Math.floor(score - WIN_SCORE);
+        nextOpenCost = 100;
+        openedEggIndices = [];
+        surplusDisplay.textContent = `剩余收益: $${surplusScore}`;
+
+        renderEggs();
+    }
+
+    function renderEggs() {
+        eggSelectionContainer.innerHTML = '';
+        // 恢复容器样式（可能被 openEgg 修改过）
+        eggSelectionContainer.style.height = '';
+        eggSelectionContainer.style.alignItems = '';
+
         if (caughtDollsHistory.length === 0) caughtDollsHistory.push({ class: 'green', type: 'normal' });
-        caughtDollsHistory.forEach(dollData => {
+        
+        caughtDollsHistory.forEach((dollData, index) => {
+            // 如果这个蛋已经开过了，就不渲染或者渲染为已开启状态（这里选择直接不显示，符合“选一个开”的逻辑，或者显示为不可点击）
+            // 根据需求“花掉多余的钱，可以多开蛋”，意味着要从剩余的里面选。
+            // 简单起见，已开启的蛋不再显示在选择列表中
+            if (openedEggIndices.includes(index)) return;
+
             const eggEl = document.createElement('div');
             eggEl.className = `selectable-egg doll ${dollData.class}`;
+            eggEl.dataset.index = index; // 存储索引
             eggEl.addEventListener('click', (event) => {
                 const allEggElements = Array.from(eggSelectionContainer.children);
-                openEgg(event.currentTarget, allEggElements);
+                openEgg(event.currentTarget, allEggElements, index);
             }, { once: true });
             eggSelectionContainer.appendChild(eggEl);
         });
+
+        if (eggSelectionContainer.children.length === 0) {
+            winPrompt.textContent = "所有蛋都开完啦！";
+        }
     }
 
-    function openEgg(selectedEgg, allEggs) {
+    function openEgg(selectedEgg, allEggs, originalIndex) {
+        // 记录这个蛋已被开启
+        openedEggIndices.push(originalIndex);
+
         allEggs.forEach(egg => {
             if (egg !== selectedEgg) egg.style.display = 'none';
             egg.style.pointerEvents = 'none';
@@ -365,10 +400,15 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedEgg.style.transform = 'translate(-50%, -50%) scale(1.5)';
         selectedEgg.style.transition = 'all 0.5s ease';
         winPrompt.classList.add('hidden');
+        
         setTimeout(() => {
             selectedEgg.style.display = 'none';
             rewardDisplay.classList.remove('hidden');
             winButtonsContainer.classList.remove('hidden');
+            
+            // 更新继续按钮状态
+            updateContinueButtonState();
+
             const commonAnimals = [{ name: "小绿龙", emoji: "🐲" }, { name: "紫仓鼠", emoji: "🐹" }, { name: "蓝企鹅", emoji: "🐧" }, { name: "粉红兔", emoji: "🐰" }, { name: "棕熊熊", emoji: "🐻" }];
             const rareAnimal = { name: "✨黄金鸡✨", emoji: "🐥", rare: true };
             const finalReward = Math.random() < 0.05 ? rareAnimal : commonAnimals[Math.floor(Math.random() * commonAnimals.length)];
@@ -376,6 +416,39 @@ document.addEventListener('DOMContentLoaded', () => {
             rewardName.textContent = finalReward.name;
             rewardName.classList.toggle('rare', finalReward.rare);
         }, 500);
+    }
+
+    function updateContinueButtonState() {
+        const remainingEggs = caughtDollsHistory.length - openedEggIndices.length;
+        continueButton.innerHTML = `我还有钱，继续开<span class="cost-tag">(-$${nextOpenCost})</span>`;
+        
+        if (remainingEggs <= 0) {
+            continueButton.disabled = true;
+            continueButton.innerHTML = `没有蛋了`;
+        } else if (surplusScore < nextOpenCost) {
+            continueButton.disabled = true;
+            // 保持显示花费，让玩家知道为什么不能点
+        } else {
+            continueButton.disabled = false;
+        }
+    }
+
+    function handleContinueOpen() {
+        if (surplusScore >= nextOpenCost) {
+            surplusScore -= nextOpenCost;
+            nextOpenCost *= 2; // 价格翻倍
+            
+            // 更新UI
+            surplusDisplay.textContent = `剩余收益: $${surplusScore}`;
+            
+            // 隐藏奖励界面，显示选择界面
+            rewardDisplay.classList.add('hidden');
+            winButtonsContainer.classList.add('hidden');
+            winPrompt.classList.remove('hidden');
+            winPrompt.textContent = "再选一个！";
+            
+            renderEggs();
+        }
     }
 
     // --- 工具函数 ---

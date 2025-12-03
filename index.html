@@ -57,6 +57,7 @@
     <!-- 胜利结算与开奖界面 -->
     <div id="win-overlay" class="hidden">
         <h2>胜利!</h2>
+        <div id="surplus-display"></div>
         <p id="win-prompt">请选择一个战利品来开启最终奖励！</p>
         <div id="egg-selection-container">
             <!-- JS 会在这里动态添加彩蛋 -->
@@ -67,6 +68,7 @@
             <p id="reward-name"></p>
         </div>
         <div id="win-buttons-container" class="hidden">
+            <button id="continue-button" class="win-button">我还有钱，继续开</button>
             <button class="win-button">查看图鉴</button>
             <button id="restart-button-win" class="win-button restart-button">再来一局</button>
         </div>
