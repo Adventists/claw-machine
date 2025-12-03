@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let timerInterval;
     let frenzyTimeout; // 用于清除狂热模式的定时器
     let surplusScore = 0; // 剩余收益
-    let nextOpenCost = 100; // 下一次额外开蛋花费
+    let nextOpenCost = 300; // 下一次额外开蛋花费
     let openedEggIndices = []; // 已开启的蛋的索引
 
     // --- 游戏参数配置 (在这里调整游戏手感和难度) ---
@@ -348,7 +348,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 初始化胜利状态
         surplusScore = Math.floor(score - WIN_SCORE);
-        nextOpenCost = 100;
         openedEggIndices = [];
         surplusDisplay.textContent = `剩余收益: $${surplusScore}`;
 
