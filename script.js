@@ -25,17 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const surplusDisplay = document.getElementById('surplus-display');
     const continueButton = document.getElementById('continue-button');
 
-    // --- 游戏状态变量 ---
-    let gameState, score, lives, timeLeft, fuel;
-    let dolls, crystals, caughtDoll;
-    let isAiming, isBoosting, isFrenzyMode; // 新增 isFrenzyMode
-    let caughtDollsHistory;
-    let timerInterval;
-    let frenzyTimeout; // 用于清除狂热模式的定时器
-    let surplusScore = 0; // 剩余收益
-    let nextOpenCost = 300; // 下一次额外开蛋花费
-    let openedEggIndices = []; // 已开启的蛋的索引
-
     // --- 游戏参数配置 (在这里调整游戏手感和难度) ---
     const INITIAL_TIME = 30;                 // 初始游戏时间（秒）
     const WIN_SCORE = 100;                 // 胜利所需达到的最低分数
@@ -46,6 +35,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const FUEL_CONSUME_RATE = 40;          // 按住加速时，每秒消耗的燃料
     const BOOST_SPEED_MULTIPLIER = 2.5;    // 固定加速倍率
     const FRENZY_SPEED_MULTIPLIER = 2.0;   // 狂热模式速度倍率
+    const INITIAL_NEXT_OPEN_COST = 300;    // 额外开蛋初始花费
+
+    // --- 游戏状态变量 ---
+    let gameState, score, lives, timeLeft, fuel;
+    let dolls, crystals, caughtDoll;
+    let isAiming, isBoosting, isFrenzyMode; // 新增 isFrenzyMode
+    let caughtDollsHistory;
+    let timerInterval;
+    let frenzyTimeout; // 用于清除狂热模式的定时器
+    let surplusScore = 0; // 剩余收益
+    let nextOpenCost = INITIAL_NEXT_OPEN_COST; // 下一次额外开蛋花费
+    let openedEggIndices = []; // 已开启的蛋的索引
     
     // --- 蛋种配置 ---
     const DOLL_TYPES = {
@@ -129,6 +130,11 @@ document.addEventListener('DOMContentLoaded', () => {
         caughtDollsHistory = [];
         clearTimeout(frenzyTimeout);
         gameContainer.classList.remove('frenzy-mode-active');
+        
+        // 重置扩展功能状态
+        surplusScore = 0;
+        nextOpenCost = INITIAL_NEXT_OPEN_COST;
+        openedEggIndices = [];
 
         updateBoostBar();
         scoreTargetDisplay.textContent = `/ $${WIN_SCORE}`;
@@ -348,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 初始化胜利状态
         surplusScore = Math.floor(score - WIN_SCORE);
+        nextOpenCost = INITIAL_NEXT_OPEN_COST;
         openedEggIndices = [];
         surplusDisplay.textContent = `剩余收益: $${surplusScore}`;
 
