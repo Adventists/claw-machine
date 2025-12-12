@@ -214,6 +214,12 @@
                     <div class="buff-info">大力神爪</div>
                     <span class="buff-timer" id="timer-power">--</span>
                 </div>
+                <!-- 新增：盲盒计数显示 -->
+                <div class="buff-item" style="opacity: 1; border: 1px solid #aaa;">
+                    <span class="buff-icon">❓</span>
+                    <div class="buff-info">已收集盲盒</div>
+                    <span class="buff-timer" id="blind-box-count-ui" style="color: #ff9a9e;">0</span>
+                </div>
             </div>
             <div style="margin-top: 10px; font-size: 12px; color: #888;">
                 <p>❓ 盲盒: 结算时开启</p>
@@ -236,12 +242,12 @@
                 </select>
             </div>
             <div class="control-group">
-                <label>基础球速 <span id="val-speed" class="value-display">1.5</span></label>
-                <input type="range" id="inp-speed" min="0.5" max="5" step="0.1" value="1.5">
+                <label>基础球速 <span id="val-speed" class="value-display">0.5</span></label>
+                <input type="range" id="inp-speed" min="0.5" max="5" step="0.1" value="0.5">
             </div>
             <div class="control-group">
-                <label>生成间隔 <span id="val-spawn" class="value-display">1200</span></label>
-                <input type="range" id="inp-spawn" min="500" max="3000" step="100" value="1200">
+                <label>生成间隔 <span id="val-spawn" class="value-display">500</span></label>
+                <input type="range" id="inp-spawn" min="500" max="3000" step="100" value="500">
             </div>
         </div>
     </div>
@@ -268,8 +274,8 @@
      * 游戏配置
      */
     const GameConfig = {
-        ballSpeed: 1.5,
-        ballSpawnInterval: 1200,
+        ballSpeed: 0.5,
+        ballSpawnInterval: 500,
         clawPatrolSpeed: 8,
         clawDropSpeed: 25,
         
@@ -356,6 +362,11 @@
         updateItem('power', activeBuffs.power);
     }
 
+    function updateBlindBoxUI() {
+        const el = document.getElementById('blind-box-count-ui');
+        if (el) el.innerText = blindBoxCount;
+    }
+
     // --- 游戏逻辑类 ---
 
     class Ball {
@@ -398,11 +409,7 @@
             
             // 绘制 Buff 图标
             if (this.buff !== BUFF_TYPES.NONE) {
-                ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 40, 0, Math.PI*2);
-                ctx.fill();
-
+                // 移除遮罩，直接绘制文字
                 ctx.fillStyle = '#fff';
                 ctx.font = 'bold 30px Arial';
                 ctx.textAlign = 'center';
@@ -664,6 +671,7 @@
             removedBuffs.forEach(buff => {
                 if (buff === BUFF_TYPES.MYSTERY) {
                     blindBoxCount++;
+                    updateBlindBoxUI();
                 } else if (buff === BUFF_TYPES.SPEED) {
                     activeBuffs.speed = GameConfig.buffDuration;
                     activeBuffs.slow = 0; // 互斥
@@ -824,6 +832,7 @@
         document.getElementById('game-over-modal').style.display = 'none';
         updateScoreUI();
         updateBuffUI();
+        updateBlindBoxUI();
         initPath();
         
         // 重新启动循环 (如果之前停止了的话，但我们其实没停止RAF，只是return了)
