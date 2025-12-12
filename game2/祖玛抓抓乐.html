@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>祖玛抓抓乐 - Buff增强版</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: #222; 
+            height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            font-family: "Microsoft YaHei", sans-serif; 
+            overflow: hidden; 
+            color: #fff;
+        }
+        
+        /* 主布局容器 */
+        #main-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* 游戏容器 */
+        #game-wrapper {
+            position: relative;
+            height: 95vh;
+            aspect-ratio: 750/1334;
+            background: linear-gradient(180deg, #fffbf0 0%, #e6f7ff 100%);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* 侧边栏 */
+        #side-panel {
+            width: 260px;
+            background: #333;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 90vh;
+        }
+
+        .panel-section {
+            background: #444;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        h3 { margin: 0 0 10px 0; color: #ff8fab; font-size: 16px; border-bottom: 1px solid #555; padding-bottom: 5px; }
+        
+        /* 进度条样式 */
+        .progress-container {
+            width: 100%;
+            height: 24px;
+            background: #222;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #555;
+            margin-top: 5px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ffff00;
+            z-index: 2;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+        
+        /* Buff 状态展示 */
+        .buff-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            background: #555;
+            padding: 8px;
+            border-radius: 6px;
+            opacity: 0.5;
+            transition: all 0.3s;
+        }
+        .buff-item.active {
+            opacity: 1;
+            background: #666;
+            border: 1px solid #ff8fab;
+        }
+        .buff-icon { font-size: 20px; width: 30px; text-align: center; }
+        .buff-info { flex: 1; }
+        .buff-timer { font-weight: bold; color: #ffd700; }
+
+        /* 调试控制项 */
+        .control-group { margin-bottom: 8px; font-size: 12px; }
+        .control-group label { display: flex; justify-content: space-between; margin-bottom: 2px; }
+        .control-group input { width: 100%; cursor: pointer; }
+        .value-display { color: #ff8fab; font-weight: bold; }
+
+        /* 游戏结束弹窗 */
+        #game-over-modal {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: white;
+            text-align: center;
+        }
+        #game-over-modal h2 { font-size: 36px; margin-bottom: 10px; color: #ff8fab; }
+        #game-over-modal p { font-size: 18px; color: #ccc; margin-bottom: 20px; }
+        button.restart-btn {
+            padding: 10px 30px;
+            font-size: 20px;
+            background: linear-gradient(45deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            color: #333;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
+        }
+
+        /* 盲盒展示 */
+        #blind-box-result {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .box-opened {
+            width: 50px; height: 50px;
+            background: #fff;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+            font-weight: bold;
+            animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="main-container">
+    <!-- 侧边信息栏 -->
+    <div id="side-panel">
+        <div class="panel-section">
+            <h3>当前分数</h3>
+            <div style="text-align: center; font-size: 28px; font-weight: bold; color: #4facfe;" id="score-text">0</div>
+            <div class="progress-container">
+                <div class="progress-fill" id="progress-fill"></div>
+                <!-- 2000分标记 (40%) -->
+                <div class="progress-marker" style="left: 40%; background: #ff9a9e;" title="通关线"></div>
+            </div>
+            <div class="progress-label">
+                <span>0</span>
+                <span style="color:#ff9a9e">2000(通关)</span>
+                <span>5000(满级)</span>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Buff 状态</h3>
+            <div id="buff-list">
+                <div class="buff-item" id="buff-speed">
+                    <span class="buff-icon">⚡</span>
+                    <div class="buff-info">急速狂飙</div>
+                    <span class="buff-timer" id="timer-speed">--</span>
+                </div>
+                <div class="buff-item" id="buff-slow">
+                    <span class="buff-icon">🐢</span>
+                    <div class="buff-info">时间冻结</div>
+                    <span class="buff-timer" id="timer-slow">--</span>
+                </div>
+                <div class="buff-item" id="buff-power">
+                    <span class="buff-icon">💪</span>
+                    <div class="buff-info">大力神爪</div>
+                    <span class="buff-timer" id="timer-power">--</span>
+                </div>
+            </div>
+            <div style="margin-top: 10px; font-size: 12px; color: #888;">
+                <p>❓ 盲盒: 结算时开启</p>
+                <p>⚡ 加速: 球速 x2 (5s)</p>
+                <p>🐢 减速: 球速 x0.5 (5s)</p>
+                <p>💪 大力: 连抓同色球 (5s)</p>
+            </div>
+        </div>
+
+        <div class="panel-section" id="debug-controls">
+            <h3>开发者控制台</h3>
+            <div class="control-group">
+                <label>轨道形状</label>
+                <select id="inp-trackShape" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
+                    <option value="sine">波浪 (默认)</option>
+                    <option value="spiral">螺旋 (挑战)</option>
+                    <option value="circle">大回环</option>
+                    <option value="infinity">无限 (∞)</option>
+                    <option value="heart">爱心</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>基础球速 <span id="val-speed" class="value-display">1.5</span></label>
+                <input type="range" id="inp-speed" min="0.5" max="5" step="0.1" value="1.5">
+            </div>
+            <div class="control-group">
+                <label>生成间隔 <span id="val-spawn" class="value-display">1200</span></label>
+                <input type="range" id="inp-spawn" min="500" max="3000" step="100" value="1200">
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏主区域 -->
+    <div id="game-wrapper">
+        <canvas id="gameCanvas" width="750" height="1334"></canvas>
+        
+        <!-- 游戏结束弹窗 -->
+        <div id="game-over-modal">
+            <h2 id="modal-title">游戏结束</h2>
+            <p id="modal-desc">得分: 100</p>
+            <div id="blind-box-area" style="display:none;">
+                <p style="font-size:14px; color:#ff9a9e;">开启了 <span id="box-count">0</span> 个盲盒!</p>
+                <div id="blind-box-result"></div>
+            </div>
+            <button class="restart-btn" onclick="resetGame()">再玩一次</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /**
+     * 游戏配置
+     */
+    const GameConfig = {
+        ballSpeed: 1.5,
+        ballSpawnInterval: 1200,
+        clawPatrolSpeed: 8,
+        clawDropSpeed: 25,
+        
+        trackBaseY: 900,
+        trackAmplitude: 120,
+        trackFrequency: 0.01,
+        trackShape: 'sine',
+        
+        colors: ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA'],
+        
+        // 分数系统
+        maxScore: 5000,
+        passScore: 2000,
+        
+        // Buff 参数
+        buffProbability: 0.15, // 15% 概率出 Buff
+        buffDuration: 5.0      // 5秒
+    };
+
+    const BUFF_TYPES = {
+        NONE: 'none',
+        MYSTERY: 'mystery', // ❓
+        SPEED: 'speed',     // ⚡
+        SLOW: 'slow',       // 🐢
+        POWER: 'power'      // 💪
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 全局状态
+    let score = 0;
+    let lastTime = 0;
+    let ballTimer = 0;
+    let pathPoints = []; 
+    let balls = [];
+    let slots = [];
+    let particles = [];
+    let isGameOver = false;
+    let blindBoxCount = 0;
+
+    // Buff 状态 (剩余秒数)
+    let activeBuffs = {
+        speed: 0,
+        slow: 0,
+        power: 0
+    };
+    
+    // 抓钩对象
+    const claw = {
+        x: 375, y: 200, originY: 200,
+        state: 'IDLE', direction: 1, 
+        heldBalls: [] // 改为数组，支持抓多个
+    };
+
+    // --- UI 控制 ---
+    function updateScoreUI() {
+        document.getElementById('score-text').innerText = score;
+        const pct = Math.min(100, (score / GameConfig.maxScore) * 100);
+        document.getElementById('progress-fill').style.width = pct + '%';
+        
+        // 实时检查满级
+        if (score >= GameConfig.maxScore && !isGameOver) {
+            gameOver(true, 'FULL');
+        }
+    }
+
+    function updateBuffUI() {
+        // Helper to update specific buff item
+        const updateItem = (type, timer) => {
+            const el = document.getElementById('buff-' + type);
+            const timerEl = document.getElementById('timer-' + type);
+            if (timer > 0) {
+                el.classList.add('active');
+                timerEl.innerText = timer.toFixed(1) + 's';
+            } else {
+                el.classList.remove('active');
+                timerEl.innerText = '--';
+            }
+        };
+
+        updateItem('speed', activeBuffs.speed);
+        updateItem('slow', activeBuffs.slow);
+        updateItem('power', activeBuffs.power);
+    }
+
+    // --- 游戏逻辑类 ---
+
+    class Ball {
+        constructor() {
+            this.pathIndex = 0;
+            this.color = GameConfig.colors[Math.floor(Math.random() * GameConfig.colors.length)];
+            this.markedForDeletion = false;
+            
+            // 随机分配 Buff
+            this.buff = BUFF_TYPES.NONE;
+            if (Math.random() < GameConfig.buffProbability) {
+                const types = [BUFF_TYPES.MYSTERY, BUFF_TYPES.SPEED, BUFF_TYPES.SLOW, BUFF_TYPES.POWER];
+                this.buff = types[Math.floor(Math.random() * types.length)];
+            }
+            
+            this.updatePos();
+        }
+
+        updatePos() {
+            const idx = Math.floor(this.pathIndex);
+            if (idx < pathPoints.length) {
+                this.x = pathPoints[idx].x;
+                this.y = pathPoints[idx].y;
+            } else {
+                this.markedForDeletion = true;
+            }
+        }
+
+        update(dtMultiplier) {
+            // 应用全局速度倍率 (由Buff决定)
+            this.pathIndex += GameConfig.ballSpeed * dtMultiplier;
+            this.updatePos();
+        }
+
+        draw(ctx) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 40, 0, Math.PI*2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            
+            // 绘制 Buff 图标
+            if (this.buff !== BUFF_TYPES.NONE) {
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 40, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 30px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let symbol = '';
+                switch(this.buff) {
+                    case BUFF_TYPES.MYSTERY: symbol = '❓'; break;
+                    case BUFF_TYPES.SPEED: symbol = '⚡'; break;
+                    case BUFF_TYPES.SLOW: symbol = '🐢'; break;
+                    case BUFF_TYPES.POWER: symbol = '💪'; break;
+                }
+                ctx.fillText(symbol, this.x, this.y + 2); // 微调垂直位置
+            }
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            this.vx = (Math.random()-0.5)*15;
+            this.vy = (Math.random()-0.5)*15;
+            this.life = 1;
+        }
+        update() { this.x+=this.vx; this.y+=this.vy; this.life-=0.05; }
+        draw(ctx) {
+            if(this.life<=0) return;
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // --- 核心功能 ---
+
+    function initPath() {
+        pathPoints = [];
+        balls = []; // 每次重置路径时清空球
+        
+        let shape = GameConfig.trackShape;
+        let cx = 375, cy = 700;
+        
+        if (shape === 'sine') {
+            for (let x = -100; x <= 850; x += 5) {
+                let y = GameConfig.trackBaseY 
+                      + Math.sin(x * GameConfig.trackFrequency) * GameConfig.trackAmplitude 
+                      + (x * 0.1);
+                pathPoints.push({x, y});
+            }
+        } 
+        else if (shape === 'spiral') {
+            cy = 600;
+            let radius = 10;
+            let angle = 0;
+            for (let i = 0; i < 600; i++) {
+                angle += 0.1; radius += 0.5;
+                let x = cx + radius * Math.cos(angle);
+                let y = cy + radius * Math.sin(angle);
+                pathPoints.push({x, y});
+            }
+        }
+        else if (shape === 'circle') {
+             const r = 300;
+             for (let i = 0; i < 360; i++) {
+                 let rad = (i - 90) * (Math.PI / 180); 
+                 let x = cx + r * Math.cos(rad);
+                 let y = cy + r * Math.sin(rad);
+                 pathPoints.push({x, y});
+             }
+        }
+        else if (shape === 'infinity') {
+            const a = 300;
+            for (let t = 0; t < Math.PI * 2; t += 0.02) {
+                const denom = 1 + Math.sin(t) * Math.sin(t);
+                let x = cx + (a * Math.cos(t)) / denom;
+                let y = cy + (a * Math.sin(t) * Math.cos(t)) / denom;
+                pathPoints.push({x, y});
+            }
+        }
+        else if (shape === 'heart') {
+            cy = 650;
+            const scale = 15;
+            for (let t = 0; t < Math.PI * 2; t += 0.02) {
+                let x = cx + scale * (16 * Math.pow(Math.sin(t), 3));
+                let y = cy - scale * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+                pathPoints.push({x, y});
+            }
+        }
+    }
+
+    function findConnectedBalls(startBall) {
+        // 查找与 startBall 颜色相同且在路径上相邻的球
+        // 简单实现：按路径索引排序，然后向前后搜索
+        // 1. 获取所有球并按 pathIndex 排序
+        let sortedBalls = [...balls].sort((a, b) => a.pathIndex - b.pathIndex);
+        let targetIdx = sortedBalls.indexOf(startBall);
+        if (targetIdx === -1) return [startBall];
+
+        let connected = [startBall];
+        
+        // 向前搜
+        for (let i = targetIdx - 1; i >= 0; i--) {
+            let b = sortedBalls[i];
+            let prevB = sortedBalls[i+1]; // 上一个加入的球（逻辑上是后一个位置）
+            // 距离判定 (直径80，稍微放宽到90)
+            let dist = Math.hypot(b.x - prevB.x, b.y - prevB.y);
+            if (b.color === startBall.color && dist < 90) {
+                connected.push(b);
+            } else {
+                break; // 断开
+            }
+        }
+        
+        // 向后搜
+        for (let i = targetIdx + 1; i < sortedBalls.length; i++) {
+            let b = sortedBalls[i];
+            let prevB = sortedBalls[i-1];
+            let dist = Math.hypot(b.x - prevB.x, b.y - prevB.y);
+            if (b.color === startBall.color && dist < 90) {
+                connected.push(b);
+            } else {
+                break;
+            }
+        }
+        
+        return connected;
+    }
+
+    function update(dt) {
+        if (isGameOver) return;
+
+        // 1. 更新 Buff 计时器
+        if (activeBuffs.speed > 0) activeBuffs.speed -= dt / 1000;
+        if (activeBuffs.slow > 0) activeBuffs.slow -= dt / 1000;
+        if (activeBuffs.power > 0) activeBuffs.power -= dt / 1000;
+        updateBuffUI();
+
+        // 计算当前球速倍率
+        let speedMult = 1.0;
+        if (activeBuffs.speed > 0) speedMult = 2.0;
+        else if (activeBuffs.slow > 0) speedMult = 0.5;
+
+        // 2. 生成球
+        ballTimer += dt;
+        if (ballTimer > GameConfig.ballSpawnInterval) {
+            balls.push(new Ball());
+            ballTimer = 0;
+        }
+
+        // 3. 更新球位置
+        balls.forEach(b => b.update(speedMult));
+        balls = balls.filter(b => !b.markedForDeletion);
+        
+        // 4. 抓钩逻辑
+        if (claw.state === 'IDLE') {
+            claw.x += GameConfig.clawPatrolSpeed * claw.direction;
+            if (claw.x < 50 || claw.x > 700) claw.direction *= -1;
+            
+            // 游戏结束检测：当槽位满且抓钩空闲，且无法再消除时 (简化判定：满了就判输，除非恰好最后一次消除了)
+            // 这里我们给一点宽容度，只在玩家尝试抓取时或者长时间无操作判定，
+            // 但为了简单，如果槽位满了且抓钩归位了，就是Dead End
+            if (slots.length >= 5) {
+                // 检查是否还有正在进行的消除动画？这里是即时消除，所以如果IDLE且满，就是输
+                // 但要先判断分数是否通关
+                if (score >= GameConfig.passScore) {
+                    gameOver(true, 'PASS');
+                } else {
+                    gameOver(false, 'FAIL');
+                }
+            }
+
+        } else if (claw.state === 'DOWN') {
+            claw.y += GameConfig.clawDropSpeed;
+            
+            // 碰撞检测
+            if (claw.heldBalls.length === 0) {
+                // 遍历所有球
+                for (let b of balls) {
+                    if (Math.hypot(claw.x - b.x, claw.y - b.y) < 70) {
+                        // 命中！
+                        
+                        // 检查 Power Buff
+                        if (activeBuffs.power > 0) {
+                            // 大力模式：抓一串
+                            const connected = findConnectedBalls(b);
+                            connected.forEach(target => {
+                                target.markedForDeletion = true;
+                                claw.heldBalls.push({ color: target.color, buff: target.buff });
+                            });
+                        } else {
+                            // 普通模式：抓一个
+                            b.markedForDeletion = true;
+                            claw.heldBalls.push({ color: b.color, buff: b.buff });
+                        }
+
+                        claw.state = 'UP';
+                        break;
+                    }
+                }
+            }
+            if (claw.y > 1200) claw.state = 'UP';
+
+        } else if (claw.state === 'UP') {
+            claw.y -= GameConfig.clawDropSpeed;
+            if (claw.y <= claw.originY) {
+                claw.y = claw.originY;
+                claw.state = 'IDLE';
+                
+                // 放入槽位
+                if (claw.heldBalls.length > 0) {
+                    // 大力模式下允许临时爆槽
+                    claw.heldBalls.forEach(b => slots.push(b));
+                    claw.heldBalls = []; // 清空抓钩
+                    checkMatch();
+                }
+            }
+        }
+
+        // 5. 粒子
+        particles.forEach(p => p.update());
+    }
+
+    function checkMatch() {
+        if (slots.length === 0) return;
+        
+        const lastColor = slots[slots.length - 1].color;
+        const matchingIndices = [];
+        slots.forEach((s, index) => {
+            if (s.color === lastColor) matchingIndices.push(index);
+        });
+
+        if (matchingIndices.length >= 2) {
+            // 触发消除
+            let removedBuffs = [];
+            
+            // 倒序删除以防索引错乱，或者直接filter
+            // 但我们需要知道哪些球被消除了来触发Buff
+            matchingIndices.forEach(idx => {
+                // 特效
+                // 注意：因为slots可能超过5个，UI绘制位置需要动态计算，这里特效也动态计算
+                const bx = 75 + (idx % 5) * 125; // 简单的取余防止画出屏幕太远
+                const by = 80 + Math.floor(idx / 5) * 100; // 如果堆叠显示的话
+                for(let i=0; i<20; i++) particles.push(new Particle(bx, by, lastColor));
+                
+                // 收集Buff
+                if (slots[idx].buff && slots[idx].buff !== BUFF_TYPES.NONE) {
+                    removedBuffs.push(slots[idx].buff);
+                }
+            });
+
+            // 真正移除
+            slots = slots.filter(s => s.color !== lastColor);
+            
+            // 加分
+            score += 100 * matchingIndices.length;
+            updateScoreUI();
+
+            // 激活 Buff
+            removedBuffs.forEach(buff => {
+                if (buff === BUFF_TYPES.MYSTERY) {
+                    blindBoxCount++;
+                } else if (buff === BUFF_TYPES.SPEED) {
+                    activeBuffs.speed = GameConfig.buffDuration;
+                    activeBuffs.slow = 0; // 互斥
+                } else if (buff === BUFF_TYPES.SLOW) {
+                    activeBuffs.slow = GameConfig.buffDuration;
+                    activeBuffs.speed = 0; // 互斥
+                } else if (buff === BUFF_TYPES.POWER) {
+                    activeBuffs.power = GameConfig.buffDuration;
+                }
+            });
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0,0,750,1334);
+
+        // 轨道
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.lineWidth = 20;
+        for(let i=0; i<pathPoints.length; i++) {
+            const p = pathPoints[i];
+            if(i===0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+
+        // 球与粒子
+        balls.forEach(b => b.draw(ctx));
+        particles.forEach(p => p.draw(ctx));
+
+        // 抓钩绳子
+        ctx.beginPath();
+        ctx.moveTo(claw.x, claw.originY - 100);
+        ctx.lineTo(claw.x, claw.y);
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        
+        // 抓钩头与持球
+        ctx.save();
+        ctx.translate(claw.x, claw.y);
+        
+        // 如果抓着球
+        if (claw.heldBalls.length > 0) {
+            // 画第一个球作为代表，或者画一串？画一串比较酷
+            claw.heldBalls.forEach((b, i) => {
+                ctx.beginPath(); 
+                ctx.arc(0, 40 + i*60, 40, 0, Math.PI*2); // 垂直串联
+                ctx.fillStyle = b.color; 
+                ctx.fill();
+            });
+        }
+        
+        // 钩爪主体
+        ctx.fillStyle = '#ffcc80';
+        ctx.fillRect(-30, 0, 60, 40);
+        
+        // Power Buff 视觉特效 (抓钩发光)
+        if (activeBuffs.power > 0) {
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(-32, -2, 64, 44);
+        }
+        
+        ctx.restore();
+
+        // 槽位
+        // 支持显示超过5个，防止大力爪抓太多导致看不见
+        const slotCount = Math.max(5, slots.length);
+        const startX = 75; // 居中偏移调整
+        // 为了保持居中，如果球很多，可能要缩小间距，或者分行。这里简单处理：只显示前5个的位置框，球溢出显示
+        
+        for(let i=0; i<slotCount; i++) {
+            // 计算位置
+            const bx = startX + (i % 5) * 125;
+            const by = 30 + Math.floor(i / 5) * 110; // 溢出换行
+            
+            // 只画前5个的背景框
+            if (i < 5) {
+                ctx.strokeStyle = '#888';
+                ctx.strokeRect(bx, 30, 100, 100);
+            }
+            
+            if (slots[i]) {
+                ctx.beginPath(); ctx.arc(bx+50, by+50, 40, 0, Math.PI*2);
+                ctx.fillStyle = slots[i].color; ctx.fill();
+                
+                // Buff 标记
+                if (slots[i].buff && slots[i].buff !== 'none') {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    let s = '';
+                    if(slots[i].buff === 'mystery') s='❓';
+                    if(slots[i].buff === 'speed') s='⚡';
+                    if(slots[i].buff === 'slow') s='🐢';
+                    if(slots[i].buff === 'power') s='💪';
+                    ctx.fillText(s, bx+50, by+50);
+                }
+            }
+        }
+    }
+
+    function gameOver(success, reason) {
+        isGameOver = true;
+        const modal = document.getElementById('game-over-modal');
+        const title = document.getElementById('modal-title');
+        const desc = document.getElementById('modal-desc');
+        const boxArea = document.getElementById('blind-box-area');
+        
+        modal.style.display = 'flex';
+        
+        if (success) {
+            title.innerText = reason === 'FULL' ? "🎉 完美通关！" : "✅ 挑战成功！";
+            title.style.color = "#00f2fe";
+        } else {
+            title.innerText = "💔 游戏结束";
+            title.style.color = "#ff4444";
+        }
+        
+        desc.innerText = `最终得分: ${score}`;
+        
+        // 结算盲盒
+        if (blindBoxCount > 0) {
+            boxArea.style.display = 'block';
+            document.getElementById('box-count').innerText = blindBoxCount;
+            const resContainer = document.getElementById('blind-box-result');
+            resContainer.innerHTML = '';
+            
+            // 简单的开盲盒动画效果
+            for(let i=0; i<blindBoxCount; i++) {
+                setTimeout(() => {
+                    const box = document.createElement('div');
+                    box.className = 'box-opened';
+                    // 随机奖励文案
+                    const rewards = ['💎', '🍬', '🧸', '🎈', '💰'];
+                    box.innerText = rewards[Math.floor(Math.random()*rewards.length)];
+                    resContainer.appendChild(box);
+                }, i * 300);
+            }
+        } else {
+            boxArea.style.display = 'none';
+        }
+    }
+
+    function resetGame() {
+        isGameOver = false;
+        score = 0;
+        slots = [];
+        balls = []; // initPath会再次清空，但这里显式一点
+        blindBoxCount = 0;
+        activeBuffs = { speed:0, slow:0, power:0 };
+        claw.state = 'IDLE';
+        claw.heldBalls = [];
+        
+        document.getElementById('game-over-modal').style.display = 'none';
+        updateScoreUI();
+        updateBuffUI();
+        initPath();
+        
+        // 重新启动循环 (如果之前停止了的话，但我们其实没停止RAF，只是return了)
+        // update中加了 isGameOver 检查，所以只需要重置变量即可
+    }
+
+    function loop(timestamp) {
+        const dt = timestamp - lastTime;
+        lastTime = timestamp;
+        
+        // 限制最大帧间隔，防止切换后台回来后飞速运行
+        const safeDt = Math.min(dt, 50);
+        
+        update(safeDt);
+        draw();
+        
+        requestAnimationFrame(loop);
+    }
+
+    // 绑定UI事件
+    function bindDebugPanel() {
+        const bind = (id, key, needsPathUpdate = false) => {
+            const input = document.getElementById('inp-' + id);
+            const display = document.getElementById('val-' + id);
+            
+            if (!display) {
+                input.addEventListener('change', (e) => {
+                    GameConfig[key] = e.target.value;
+                    if (needsPathUpdate) initPath();
+                });
+                return;
+            }
+            
+            input.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                GameConfig[key] = val;
+                display.innerText = val;
+                if (needsPathUpdate) initPath();
+            });
+        };
+
+        bind('speed', 'ballSpeed');
+        bind('spawn', 'ballSpawnInterval');
+        bind('trackShape', 'trackShape', true);
+    }
+
+    // 交互
+    canvas.addEventListener('pointerdown', (e) => {
+        if (isGameOver) return;
+        if (claw.state === 'IDLE') {
+            // 只有当不满或者处于Power模式下(虽然Power模式下也是IDLE才能下落，但通常满了就结束了)
+            // 准确说是：如果未满5个，允许抓。
+            // 之前逻辑是满了5个直接判输。所以在GameOver前玩家已经动不了了。
+            if (slots.length < 5) {
+                claw.state = 'DOWN';
+            }
+        }
+    });
+
+    // 启动
+    bindDebugPanel();
+    initPath();
+    requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
