@@ -234,10 +234,10 @@
             <div class="control-group">
                 <label>轨道形状</label>
                 <select id="inp-trackShape" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
-                    <option value="sine">波浪 (默认)</option>
+                    <option value="sine">波浪 (简单)</option>
                     <option value="spiral">螺旋 (挑战)</option>
                     <option value="circle">大回环</option>
-                    <option value="infinity">无限 (∞)</option>
+                    <option value="infinity" selected>无限 (∞)</option>
                     <option value="heart">爱心</option>
                 </select>
             </div>
@@ -248,6 +248,30 @@
             <div class="control-group">
                 <label>生成间隔 <span id="val-spawn" class="value-display">500</span></label>
                 <input type="range" id="inp-spawn" min="500" max="3000" step="100" value="500">
+            </div>
+            
+            <div style="border-top: 1px solid #555; margin: 10px 0;"></div>
+
+            <div class="control-group">
+                <label>消除模式</label>
+                <select id="inp-matchMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
+                    <option value="match2">二消 (5槽)</option>
+                    <option value="match3">三消 (9槽)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>关卡模式</label>
+                <select id="inp-levelMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
+                    <option value="random">随机生成</option>
+                    <option value="fixed">固定关卡</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>操作模式</label>
+                <select id="inp-controlMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
+                    <option value="auto">自动摆动</option>
+                    <option value="manual">鼠标控制</option>
+                </select>
             </div>
         </div>
     </div>
@@ -282,7 +306,7 @@
         trackBaseY: 900,
         trackAmplitude: 120,
         trackFrequency: 0.01,
-        trackShape: 'sine',
+        trackShape: 'infinity',
         
         colors: ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA'],
         
@@ -292,8 +316,18 @@
         
         // Buff 参数
         buffProbability: 0.15, // 15% 概率出 Buff
-        buffDuration: 5.0      // 5秒
+        buffDuration: 5.0,      // 5秒
+        
+        // 新增模式配置
+        matchMode: 'match2',   // match2 | match3
+        levelMode: 'random',   // random | fixed
+        controlMode: 'auto',   // auto | manual
+        fixedBallCount: 30     // 固定关卡初始球数
     };
+
+    // 辅助获取当前模式参数
+    const getMatchThreshold = () => GameConfig.matchMode === 'match3' ? 3 : 2;
+    const getMaxSlots = () => GameConfig.matchMode === 'match3' ? 9 : 5;
 
     const BUFF_TYPES = {
         NONE: 'none',
@@ -391,12 +425,22 @@
                 this.x = pathPoints[idx].x;
                 this.y = pathPoints[idx].y;
             } else {
-                this.markedForDeletion = true;
+                if (GameConfig.levelMode === 'fixed') {
+                    // 固定模式：循环
+                    this.pathIndex = 0;
+                    this.updatePos();
+                } else {
+                    // 随机模式：销毁
+                    this.markedForDeletion = true;
+                }
             }
         }
 
         update(dtMultiplier) {
-            // 应用全局速度倍率 (由Buff决定)
+            // 应用全局速度倍率 (仅 Slow Buff 影响球速，Speed Buff 现在影响抓钩)
+            // 如果 dtMultiplier 是从 update() 传入的，需要确认其逻辑。
+            // 之前的 update() 逻辑是：如果有 speed buff, mult=2; slow buff, mult=0.5
+            // 我们将在外部 update() 修改此逻辑，这里保持接收倍率参数
             this.pathIndex += GameConfig.ballSpeed * dtMultiplier;
             this.updatePos();
         }
@@ -498,6 +542,25 @@
                 pathPoints.push({x, y});
             }
         }
+
+        // 固定关卡初始化：预生成球体
+        if (GameConfig.levelMode === 'fixed') {
+            // 确保路径生成完毕
+            if (pathPoints.length > 0) {
+                const totalBalls = GameConfig.fixedBallCount;
+                // 均匀分布在整个路径上
+                // 为防止首尾相接太紧，留出一段缓冲
+                const step = Math.floor(pathPoints.length / totalBalls);
+                
+                for(let i=0; i<totalBalls; i++) {
+                    let b = new Ball();
+                    // 强制设置 pathIndex
+                    b.pathIndex = i * step;
+                    b.updatePos();
+                    balls.push(b);
+                }
+            }
+        }
     }
 
     function findConnectedBalls(startBall) {
@@ -547,33 +610,45 @@
         if (activeBuffs.power > 0) activeBuffs.power -= dt / 1000;
         updateBuffUI();
 
-        // 计算当前球速倍率
-        let speedMult = 1.0;
-        if (activeBuffs.speed > 0) speedMult = 2.0;
-        else if (activeBuffs.slow > 0) speedMult = 0.5;
+        // 计算当前球速倍率 (仅 Slow 影响球速)
+        let ballSpeedMult = 1.0;
+        if (activeBuffs.slow > 0) ballSpeedMult = 0.5;
 
-        // 2. 生成球
-        ballTimer += dt;
-        if (ballTimer > GameConfig.ballSpawnInterval) {
-            balls.push(new Ball());
-            ballTimer = 0;
+        // 2. 生成球 (仅在随机模式下)
+        if (GameConfig.levelMode === 'random') {
+            ballTimer += dt;
+            if (ballTimer > GameConfig.ballSpawnInterval) {
+                balls.push(new Ball());
+                ballTimer = 0;
+            }
+        } else {
+            // 固定模式胜利检测：场上无球且槽位无球
+            if (balls.length === 0 && slots.length === 0) {
+                gameOver(true, 'CLEARED');
+                return;
+            }
         }
 
         // 3. 更新球位置
-        balls.forEach(b => b.update(speedMult));
+        balls.forEach(b => b.update(ballSpeedMult));
         balls = balls.filter(b => !b.markedForDeletion);
         
         // 4. 抓钩逻辑
         if (claw.state === 'IDLE') {
-            claw.x += GameConfig.clawPatrolSpeed * claw.direction;
-            if (claw.x < 50 || claw.x > 700) claw.direction *= -1;
+            // 自动巡逻模式
+            if (GameConfig.controlMode === 'auto') {
+                // Speed Buff 加速抓钩移动
+                let clawSpeedMult = (activeBuffs.speed > 0) ? 2.0 : 1.0;
+                claw.x += GameConfig.clawPatrolSpeed * claw.direction * clawSpeedMult;
+                if (claw.x < 50 || claw.x > 700) claw.direction *= -1;
+            }
+            // 手动模式下 claw.x 由 pointermove 事件控制，此处只需限制边界
+            else {
+                claw.x = Math.max(50, Math.min(700, claw.x));
+            }
             
-            // 游戏结束检测：当槽位满且抓钩空闲，且无法再消除时 (简化判定：满了就判输，除非恰好最后一次消除了)
-            // 这里我们给一点宽容度，只在玩家尝试抓取时或者长时间无操作判定，
-            // 但为了简单，如果槽位满了且抓钩归位了，就是Dead End
-            if (slots.length >= 5) {
-                // 检查是否还有正在进行的消除动画？这里是即时消除，所以如果IDLE且满，就是输
-                // 但要先判断分数是否通关
+            // 游戏结束检测：当槽位满且抓钩空闲
+            if (slots.length >= getMaxSlots()) {
                 if (score >= GameConfig.passScore) {
                     gameOver(true, 'PASS');
                 } else {
@@ -582,7 +657,9 @@
             }
 
         } else if (claw.state === 'DOWN') {
-            claw.y += GameConfig.clawDropSpeed;
+            // Speed Buff 加速下落 (手动模式下也能受益)
+            let dropSpeedMult = (activeBuffs.speed > 0) ? 1.5 : 1.0;
+            claw.y += GameConfig.clawDropSpeed * dropSpeedMult;
             
             // 碰撞检测
             if (claw.heldBalls.length === 0) {
@@ -613,14 +690,16 @@
             if (claw.y > 1200) claw.state = 'UP';
 
         } else if (claw.state === 'UP') {
-            claw.y -= GameConfig.clawDropSpeed;
+            // Speed Buff 加速回收
+            let dropSpeedMult = (activeBuffs.speed > 0) ? 1.5 : 1.0;
+            claw.y -= GameConfig.clawDropSpeed * dropSpeedMult;
+            
             if (claw.y <= claw.originY) {
                 claw.y = claw.originY;
                 claw.state = 'IDLE';
                 
                 // 放入槽位
                 if (claw.heldBalls.length > 0) {
-                    // 大力模式下允许临时爆槽
                     claw.heldBalls.forEach(b => slots.push(b));
                     claw.heldBalls = []; // 清空抓钩
                     checkMatch();
@@ -641,7 +720,8 @@
             if (s.color === lastColor) matchingIndices.push(index);
         });
 
-        if (matchingIndices.length >= 2) {
+        // 使用配置的消除阈值
+        if (matchingIndices.length >= getMatchThreshold()) {
             // 触发消除
             let removedBuffs = [];
             
@@ -650,8 +730,13 @@
             matchingIndices.forEach(idx => {
                 // 特效
                 // 注意：因为slots可能超过5个，UI绘制位置需要动态计算，这里特效也动态计算
-                const bx = 75 + (idx % 5) * 125; // 简单的取余防止画出屏幕太远
-                const by = 80 + Math.floor(idx / 5) * 100; // 如果堆叠显示的话
+                // 重新计算位置逻辑需要与 draw() 保持一致，这里简化处理，只确保大概位置
+                const maxSlots = getMaxSlots();
+                const spacing = (maxSlots > 5) ? 80 : 125;
+                const startX = (maxSlots > 5) ? 35 : 75;
+                
+                const bx = startX + (idx % maxSlots) * spacing;
+                const by = 80 + Math.floor(idx / maxSlots) * 110; 
                 for(let i=0; i<20; i++) particles.push(new Particle(bx, by, lastColor));
                 
                 // 收集Buff
@@ -740,30 +825,45 @@
         ctx.restore();
 
         // 槽位
-        // 支持显示超过5个，防止大力爪抓太多导致看不见
-        const slotCount = Math.max(5, slots.length);
-        const startX = 75; // 居中偏移调整
-        // 为了保持居中，如果球很多，可能要缩小间距，或者分行。这里简单处理：只显示前5个的位置框，球溢出显示
+        // 动态计算布局
+        const maxSlots = getMaxSlots();
+        const slotCount = Math.max(maxSlots, slots.length);
+        
+        // 动态调整起始位置和间距以居中
+        // 默认 750 宽。
+        // 如果 5 个：间距 125 (5*125=625)，居中剩 125/2 = 62.5
+        // 如果 9 个：间距需要更小。例如 700可用 / 9 = 77。
+        let slotW = 100; // 框大小
+        let spacing = (maxSlots > 5) ? 80 : 125;
+        let startX = (750 - (maxSlots * spacing)) / 2 + (spacing/2) - 50; // 粗略居中计算，直接固定更好
+        
+        if (maxSlots > 5) startX = 35; // 9个时的硬编码起始位
+        else startX = 75; // 5个时的起始位
         
         for(let i=0; i<slotCount; i++) {
             // 计算位置
-            const bx = startX + (i % 5) * 125;
-            const by = 30 + Math.floor(i / 5) * 110; // 溢出换行
+            const bx = startX + (i % maxSlots) * spacing;
+            const by = 30 + Math.floor(i / maxSlots) * 110; 
             
-            // 只画前5个的背景框
-            if (i < 5) {
+            // 只画最大容量内的背景框
+            if (i < maxSlots) {
                 ctx.strokeStyle = '#888';
-                ctx.strokeRect(bx, 30, 100, 100);
+                ctx.strokeRect(bx, 30, (maxSlots>5 ? 70 : 100), 100); // 9个时框画小点
             }
             
             if (slots[i]) {
-                ctx.beginPath(); ctx.arc(bx+50, by+50, 40, 0, Math.PI*2);
+                // 球心
+                let cx = bx + (maxSlots>5 ? 35 : 50);
+                let cy = by + 50;
+                let r = (maxSlots>5 ? 30 : 40); // 9个时球画小点
+                
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
                 ctx.fillStyle = slots[i].color; ctx.fill();
                 
                 // Buff 标记
                 if (slots[i].buff && slots[i].buff !== 'none') {
                     ctx.fillStyle = '#fff';
-                    ctx.font = '20px Arial';
+                    ctx.font = (maxSlots>5 ? '16px' : '20px') + ' Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     let s = '';
@@ -771,7 +871,7 @@
                     if(slots[i].buff === 'speed') s='⚡';
                     if(slots[i].buff === 'slow') s='🐢';
                     if(slots[i].buff === 'power') s='💪';
-                    ctx.fillText(s, bx+50, by+50);
+                    ctx.fillText(s, cx, cy);
                 }
             }
         }
@@ -877,16 +977,36 @@
         bind('speed', 'ballSpeed');
         bind('spawn', 'ballSpawnInterval');
         bind('trackShape', 'trackShape', true);
+        
+        // 绑定新模式控件 (变更时重置游戏)
+        ['matchMode', 'levelMode', 'controlMode'].forEach(key => {
+            document.getElementById('inp-' + key).addEventListener('change', (e) => {
+                GameConfig[key] = e.target.value;
+                resetGame();
+            });
+        });
     }
 
     // 交互
+    canvas.addEventListener('pointermove', (e) => {
+        if (GameConfig.controlMode === 'manual' && claw.state === 'IDLE' && !isGameOver) {
+            // 获取 Canvas 在屏幕上的位置和缩放比例
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            
+            // 计算鼠标在 Canvas 内的 X 坐标
+            let x = (e.clientX - rect.left) * scaleX;
+            claw.x = x; // 边界限制在 update() 中统一处理
+        }
+    });
+
     canvas.addEventListener('pointerdown', (e) => {
         if (isGameOver) return;
         if (claw.state === 'IDLE') {
             // 只有当不满或者处于Power模式下(虽然Power模式下也是IDLE才能下落，但通常满了就结束了)
             // 准确说是：如果未满5个，允许抓。
             // 之前逻辑是满了5个直接判输。所以在GameOver前玩家已经动不了了。
-            if (slots.length < 5) {
+            if (slots.length < getMaxSlots()) {
                 claw.state = 'DOWN';
             }
         }
