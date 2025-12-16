@@ -616,8 +616,12 @@
         updateBuffUI();
 
         // 计算当前球速倍率 (仅 Slow 影响球速)
-        let ballSpeedMult = 1.0;
-        if (activeBuffs.slow > 0) ballSpeedMult = 0.5;
+        // 动态心流：随着分数增加，球速自然加快
+        // 满分 5000 时，速度达到基础速度的 2.5 倍 (1.0 + 1.5)
+        let flowFactor = 1 + (score / GameConfig.maxScore) * 1.5;
+        let ballSpeedMult = 1.0 * flowFactor;
+
+        if (activeBuffs.slow > 0) ballSpeedMult *= 0.5;
 
         // 2. 生成球 (仅在随机模式下)
         if (GameConfig.levelMode === 'random') {
