@@ -256,8 +256,12 @@
                 <label>消除模式</label>
                 <select id="inp-matchMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
                     <option value="match2">二消 (5槽)</option>
-                    <option value="match3">三消 (9槽)</option>
+                    <option value="match3">三消 (可配)</option>
                 </select>
+            </div>
+            <div class="control-group" id="group-slotLimit" style="display:none;">
+                <label>槽位上限 <span id="val-slotLimit" class="value-display">9</span></label>
+                <input type="range" id="inp-slotLimit" min="7" max="9" step="1" value="9">
             </div>
             <div class="control-group">
                 <label>关卡模式</label>
@@ -320,6 +324,7 @@
         
         // 新增模式配置
         matchMode: 'match2',   // match2 | match3
+        slotLimit: 5,          // 5 | 7-9
         levelMode: 'random',   // random | fixed
         controlMode: 'auto',   // auto | manual
         fixedBallCount: 30     // 固定关卡初始球数
@@ -327,7 +332,7 @@
 
     // 辅助获取当前模式参数
     const getMatchThreshold = () => GameConfig.matchMode === 'match3' ? 3 : 2;
-    const getMaxSlots = () => GameConfig.matchMode === 'match3' ? 9 : 5;
+    const getMaxSlots = () => GameConfig.slotLimit;
 
     const BUFF_TYPES = {
         NONE: 'none',
@@ -622,8 +627,8 @@
                 ballTimer = 0;
             }
         } else {
-            // 固定模式胜利检测：场上无球且槽位无球
-            if (balls.length === 0 && slots.length === 0) {
+            // 固定模式胜利检测：场上无球即可 (槽位里剩下的算战利品)
+            if (balls.length === 0) {
                 gameOver(true, 'CLEARED');
                 return;
             }
@@ -978,10 +983,37 @@
         bind('spawn', 'ballSpawnInterval');
         bind('trackShape', 'trackShape', true);
         
+        // SlotLimit 特殊处理：input更新显示，change更新配置并重置
+        const sInp = document.getElementById('inp-slotLimit');
+        const sVal = document.getElementById('val-slotLimit');
+        sInp.addEventListener('input', (e) => {
+            sVal.innerText = e.target.value;
+        });
+        sInp.addEventListener('change', (e) => {
+             GameConfig.slotLimit = parseInt(e.target.value);
+             resetGame();
+        });
+        
         // 绑定新模式控件 (变更时重置游戏)
         ['matchMode', 'levelMode', 'controlMode'].forEach(key => {
             document.getElementById('inp-' + key).addEventListener('change', (e) => {
                 GameConfig[key] = e.target.value;
+                
+                // 特殊联动：matchMode 影响 slotLimit
+                if (key === 'matchMode') {
+                    const slotGroup = document.getElementById('group-slotLimit');
+                    const slotInp = document.getElementById('inp-slotLimit');
+                    const slotVal = document.getElementById('val-slotLimit');
+                    
+                    if (GameConfig.matchMode === 'match3') {
+                        slotGroup.style.display = 'block';
+                        GameConfig.slotLimit = parseInt(slotInp.value); // 恢复之前的设定
+                    } else {
+                        slotGroup.style.display = 'none';
+                        GameConfig.slotLimit = 5;
+                    }
+                }
+                
                 resetGame();
             });
         });
