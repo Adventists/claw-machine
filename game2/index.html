@@ -150,29 +150,77 @@
             box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
         }
 
-        /* 盲盒展示 */
+        /* 盲盒展示 - 增强版 */
         #blind-box-result {
             margin: 20px 0;
             display: flex;
-            gap: 10px;
+            gap: 15px; /* 增加间距 */
             justify-content: center;
             flex-wrap: wrap;
+            min-height: 80px; /* 预留高度 */
         }
-        .box-opened {
-            width: 50px; height: 50px;
-            background: #fff;
-            color: #333;
+
+        .blind-box-wrapper {
+            position: relative;
+            width: 60px;
+            height: 60px;
             display: flex;
             justify-content: center;
             align-items: center;
-            border-radius: 8px;
-            font-weight: bold;
-            animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        @keyframes pop {
-            0% { transform: scale(0); }
-            100% { transform: scale(1); }
+        /* 盲盒球体状态 */
+        .blind-box-ball {
+            position: absolute;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle at 30% 30%, #b39ddb, #673ab7);
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: white;
+            z-index: 2;
+            transition: all 0.2s;
+        }
+
+        .blind-box-ball.shaking {
+            animation: blind-shake 0.5s ease-in-out infinite;
+        }
+
+        .blind-box-ball.opened {
+            animation: blind-vanish 0.3s forwards;
+        }
+
+        /* 奖品 Emoji 状态 */
+        .blind-box-prize {
+            position: absolute;
+            font-size: 32px;
+            z-index: 1;
+            transform: scale(0); /* 初始不可见 */
+        }
+
+        .blind-box-prize.revealed {
+            animation: prize-jump 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes blind-shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-10deg) scale(1.05); }
+            75% { transform: rotate(10deg) scale(1.05); }
+        }
+
+        @keyframes blind-vanish {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.5; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        @keyframes prize-jump {
+            0% { transform: scale(0) translateY(20px); opacity: 0; }
+            50% { transform: scale(1.2) translateY(-20px); opacity: 1; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
         }
 
         /* --- 新增：游戏内 HUD 样式 --- */
@@ -380,10 +428,10 @@
                 <label>消除模式</label>
                 <select id="inp-matchMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
                     <option value="match2">二消 (5槽)</option>
-                    <option value="match3">三消 (可配)</option>
+                    <option value="match3" selected>三消 (可配)</option>
                 </select>
             </div>
-            <div class="control-group" id="group-slotLimit" style="display:none;">
+            <div class="control-group" id="group-slotLimit">
                 <label>槽位上限 <span id="val-slotLimit" class="value-display">9</span></label>
                 <input type="range" id="inp-slotLimit" min="7" max="9" step="1" value="9">
             </div>
@@ -391,14 +439,14 @@
                 <label>关卡模式</label>
                 <select id="inp-levelMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
                     <option value="random">随机生成</option>
-                    <option value="fixed">固定关卡</option>
+                    <option value="fixed" selected>固定关卡</option>
                 </select>
             </div>
             <div class="control-group">
                 <label>操作模式</label>
                 <select id="inp-controlMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
                     <option value="auto">自动摆动</option>
-                    <option value="manual">鼠标控制</option>
+                    <option value="manual" selected>鼠标控制</option>
                 </select>
             </div>
         </div>
@@ -443,6 +491,13 @@
                 <span class="icon">❓</span>
                 <span class="count" id="hud-blind-count">0</span>
             </div>
+
+            <!-- 底部提示语 -->
+            <div style="position: absolute; bottom: 30px; width: 100%; text-align: center; pointer-events: none;">
+                <span style="background: rgba(0, 0, 0, 0.6); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: bold; backdrop-filter: blur(2px); box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+                    按住屏幕移动抓钩，松手抓钩下落
+                </span>
+            </div>
         </div>
         
         <!-- 游戏结束弹窗 -->
@@ -468,7 +523,7 @@
         clawPatrolSpeed: 8,
         clawDropSpeed: 25,
         
-        trackBaseY: 900,
+        trackBaseY: 1000,
         trackAmplitude: 120,
         trackFrequency: 0.01,
         trackShape: 'infinity',
@@ -484,10 +539,10 @@
         buffDuration: 5.0,      // 5秒
         
         // 新增模式配置
-        matchMode: 'match2',   // match2 | match3
-        slotLimit: 5,          // 5 | 7-9
-        levelMode: 'random',   // random | fixed
-        controlMode: 'auto',   // auto | manual
+        matchMode: 'match3',   // match2 | match3
+        slotLimit: 9,          // 5 | 7-9
+        levelMode: 'fixed',   // random | fixed
+        controlMode: 'manual',   // auto | manual
         fixedBallCount: 30     // 固定关卡初始球数
     };
 
@@ -516,6 +571,7 @@
     let particles = [];
     let isGameOver = false;
     let blindBoxCount = 0;
+    let isDragging = false; // 新增：拖拽状态
 
     // Buff 状态 (剩余秒数)
     let activeBuffs = {
@@ -526,7 +582,7 @@
     
     // 抓钩对象
     const claw = {
-        x: 375, y: 250, originY: 250, // 下移抓钩起始点 (原 200 -> 250)
+        x: 375, y: 350, originY: 350, // 下移抓钩起始点 (原 250 -> 350)
         state: 'IDLE', direction: 1, 
         heldBalls: [] // 改为数组，支持抓多个
     };
@@ -685,7 +741,7 @@
         balls = []; // 每次重置路径时清空球
         
         let shape = GameConfig.trackShape;
-        let cx = 375, cy = 700;
+        let cx = 375, cy = 800; // 原 700 -> 800
         
         if (shape === 'sine') {
             for (let x = -100; x <= 850; x += 5) {
@@ -696,7 +752,7 @@
             }
         } 
         else if (shape === 'spiral') {
-            cy = 600;
+            cy = 700; // 原 600 -> 700
             let radius = 10;
             let angle = 0;
             for (let i = 0; i < 600; i++) {
@@ -725,7 +781,7 @@
             }
         }
         else if (shape === 'heart') {
-            cy = 650;
+            cy = 750; // 原 650 -> 750
             const scale = 15;
             for (let t = 0; t < Math.PI * 2; t += 0.02) {
                 let x = cx + scale * (16 * Math.pow(Math.sin(t), 3));
@@ -983,9 +1039,63 @@
         balls.forEach(b => b.draw(ctx));
         particles.forEach(p => p.draw(ctx));
 
+        // 槽位 (移到抓钩之前绘制，防止遮挡)
+        // 动态计算布局
+        const maxSlots = getMaxSlots();
+        const slotCount = Math.max(maxSlots, slots.length);
+        
+        // 动态调整起始位置和间距以居中
+        let slotW = 100; // 框大小
+        let spacing = (maxSlots > 5) ? 80 : 125;
+        let startX = (750 - (maxSlots * spacing)) / 2 + (spacing/2) - 50; 
+        
+        if (maxSlots > 5) startX = 35; 
+        else startX = 75; 
+        
+        // 整体下移 150px 以避开顶部 HUD (原 30 -> 180)
+        const slotBaseY = 180;
+
+        for(let i=0; i<slotCount; i++) {
+            // 计算位置
+            const bx = startX + (i % maxSlots) * spacing;
+            const by = slotBaseY + Math.floor(i / maxSlots) * 110; 
+            
+            // 只画最大容量内的背景框
+            if (i < maxSlots) {
+                ctx.strokeStyle = '#888';
+                ctx.lineWidth = 2; // 修复：线条变细
+                ctx.strokeRect(bx, slotBaseY, (maxSlots>5 ? 70 : 100), 100); 
+            }
+            
+            if (slots[i]) {
+                // 球心
+                let cx = bx + (maxSlots>5 ? 35 : 50);
+                let cy = by + 50;
+                let r = (maxSlots>5 ? 30 : 40); 
+                
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+                ctx.fillStyle = slots[i].color; ctx.fill();
+                
+                // Buff 标记
+                if (slots[i].buff && slots[i].buff !== 'none') {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = (maxSlots>5 ? '16px' : '20px') + ' Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    let s = '';
+                    if(slots[i].buff === 'mystery') s='❓';
+                    if(slots[i].buff === 'speed') s='⚡';
+                    if(slots[i].buff === 'slow') s='🐢';
+                    if(slots[i].buff === 'power') s='💪';
+                    ctx.fillText(s, cx, cy);
+                }
+            }
+        }
+
         // 抓钩绳子
         ctx.beginPath();
-        ctx.moveTo(claw.x, claw.originY - 100);
+        // 从槽位底端开始 (slotBaseY=180, height=100, so ~280-300)
+        ctx.moveTo(claw.x, 290); 
         ctx.lineTo(claw.x, claw.y);
         ctx.strokeStyle = '#555';
         ctx.lineWidth = 5;
@@ -1018,58 +1128,6 @@
         }
         
         ctx.restore();
-
-        // 槽位
-        // 动态计算布局
-        const maxSlots = getMaxSlots();
-        const slotCount = Math.max(maxSlots, slots.length);
-        
-        // 动态调整起始位置和间距以居中
-        let slotW = 100; // 框大小
-        let spacing = (maxSlots > 5) ? 80 : 125;
-        let startX = (750 - (maxSlots * spacing)) / 2 + (spacing/2) - 50; 
-        
-        if (maxSlots > 5) startX = 35; 
-        else startX = 75; 
-        
-        // 整体下移 150px 以避开顶部 HUD (原 30 -> 180)
-        const slotBaseY = 180;
-
-        for(let i=0; i<slotCount; i++) {
-            // 计算位置
-            const bx = startX + (i % maxSlots) * spacing;
-            const by = slotBaseY + Math.floor(i / maxSlots) * 110; 
-            
-            // 只画最大容量内的背景框
-            if (i < maxSlots) {
-                ctx.strokeStyle = '#888';
-                ctx.strokeRect(bx, slotBaseY, (maxSlots>5 ? 70 : 100), 100); 
-            }
-            
-            if (slots[i]) {
-                // 球心
-                let cx = bx + (maxSlots>5 ? 35 : 50);
-                let cy = by + 50;
-                let r = (maxSlots>5 ? 30 : 40); 
-                
-                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
-                ctx.fillStyle = slots[i].color; ctx.fill();
-                
-                // Buff 标记
-                if (slots[i].buff && slots[i].buff !== 'none') {
-                    ctx.fillStyle = '#fff';
-                    ctx.font = (maxSlots>5 ? '16px' : '20px') + ' Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    let s = '';
-                    if(slots[i].buff === 'mystery') s='❓';
-                    if(slots[i].buff === 'speed') s='⚡';
-                    if(slots[i].buff === 'slow') s='🐢';
-                    if(slots[i].buff === 'power') s='💪';
-                    ctx.fillText(s, cx, cy);
-                }
-            }
-        }
     }
 
     function gameOver(success, reason) {
@@ -1098,16 +1156,40 @@
             const resContainer = document.getElementById('blind-box-result');
             resContainer.innerHTML = '';
             
-            // 简单的开盲盒动画效果
+            // 增强版开盲盒动画逻辑
+            const rewards = ['💎', '🍬', '🧸', '🎈', '💰', '🎁', '✨', '👑', '🦄'];
+            
             for(let i=0; i<blindBoxCount; i++) {
+                // 1. 创建容器结构
+                const wrapper = document.createElement('div');
+                wrapper.className = 'blind-box-wrapper';
+                
+                const ball = document.createElement('div');
+                ball.className = 'blind-box-ball';
+                ball.innerText = '❓';
+                
+                const prize = document.createElement('div');
+                prize.className = 'blind-box-prize';
+                prize.innerText = rewards[Math.floor(Math.random()*rewards.length)];
+                
+                wrapper.appendChild(prize); // 奖品在下
+                wrapper.appendChild(ball);  // 球在上
+                
+                // 延迟添加到 DOM，制造逐个入场感
                 setTimeout(() => {
-                    const box = document.createElement('div');
-                    box.className = 'box-opened';
-                    // 随机奖励文案
-                    const rewards = ['💎', '🍬', '🧸', '🎈', '💰'];
-                    box.innerText = rewards[Math.floor(Math.random()*rewards.length)];
-                    resContainer.appendChild(box);
-                }, i * 300);
+                    resContainer.appendChild(wrapper);
+                    
+                    // 2. 触发震动
+                    ball.classList.add('shaking');
+                    
+                    // 3. 震动后开启 (延迟 600ms)
+                    setTimeout(() => {
+                        ball.classList.remove('shaking');
+                        ball.classList.add('opened');
+                        prize.classList.add('revealed');
+                    }, 600);
+                    
+                }, i * 400); // 间隔加大，让每个球都有单独的关注时刻
             }
         } else {
             boxArea.style.display = 'none';
@@ -1209,26 +1291,46 @@
         });
     }
 
-    // 交互
+    // 交互 - 新模式：按住移动，松开下落
     canvas.addEventListener('pointermove', (e) => {
         if (GameConfig.controlMode === 'manual' && claw.state === 'IDLE' && !isGameOver) {
-            // 获取 Canvas 在屏幕上的位置和缩放比例
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            
-            // 计算鼠标在 Canvas 内的 X 坐标
-            let x = (e.clientX - rect.left) * scaleX;
-            claw.x = x; // 边界限制在 update() 中统一处理
+            if (isDragging) {
+                // 获取 Canvas 在屏幕上的位置和缩放比例
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                
+                // 计算鼠标在 Canvas 内的 X 坐标
+                let x = (e.clientX - rect.left) * scaleX;
+                claw.x = x; // 边界限制在 update() 中统一处理
+            }
         }
     });
 
     canvas.addEventListener('pointerdown', (e) => {
         if (isGameOver) return;
         if (claw.state === 'IDLE') {
-            // 只有当不满或者处于Power模式下(虽然Power模式下也是IDLE才能下落，但通常满了就结束了)
-            // 准确说是：如果未满5个，允许抓。
-            // 之前逻辑是满了5个直接判输。所以在GameOver前玩家已经动不了了。
             if (slots.length < getMaxSlots()) {
+                // 开始拖拽
+                isDragging = true;
+                canvas.setPointerCapture(e.pointerId); // 锁定指针
+                
+                // 立即更新一次位置，提升响应感
+                if (GameConfig.controlMode === 'manual') {
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleX = canvas.width / rect.width;
+                    let x = (e.clientX - rect.left) * scaleX;
+                    claw.x = x;
+                }
+            }
+        }
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+        if (isDragging) {
+            isDragging = false;
+            canvas.releasePointerCapture(e.pointerId);
+            
+            if (!isGameOver && claw.state === 'IDLE' && slots.length < getMaxSlots()) {
                 claw.state = 'DOWN';
             }
         }
