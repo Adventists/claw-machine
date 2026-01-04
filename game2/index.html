@@ -446,7 +446,8 @@
                 <label>操作模式</label>
                 <select id="inp-controlMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
                     <option value="auto">自动摆动</option>
-                    <option value="manual" selected>鼠标控制</option>
+                    <option value="mouse">PC端操作 (鼠标)</option>
+                    <option value="touch" selected>移动端操作 (触摸)</option>
                 </select>
             </div>
         </div>
@@ -542,7 +543,7 @@
         matchMode: 'match3',   // match2 | match3
         slotLimit: 9,          // 5 | 7-9
         levelMode: 'fixed',   // random | fixed
-        controlMode: 'manual',   // auto | manual
+        controlMode: 'touch',   // auto | mouse | touch
         fixedBallCount: 30     // 固定关卡初始球数
     };
 
@@ -572,6 +573,7 @@
     let isGameOver = false;
     let blindBoxCount = 0;
     let isDragging = false; // 新增：拖拽状态
+    let inputTargetX = 375; // 新增：PC鼠标目标位置(用于平滑跟随)
 
     // Buff 状态 (剩余秒数)
     let activeBuffs = {
@@ -893,7 +895,14 @@
                 claw.x += GameConfig.clawPatrolSpeed * claw.direction * clawSpeedMult;
                 if (claw.x < 50 || claw.x > 700) claw.direction *= -1;
             }
-            // 手动模式下 claw.x 由 pointermove 事件控制，此处只需限制边界
+            // PC模式：平滑跟随鼠标
+            else if (GameConfig.controlMode === 'mouse') {
+                // 简单的缓动跟随 (Lerp)
+                const speed = 0.2; 
+                claw.x += (inputTargetX - claw.x) * speed;
+                claw.x = Math.max(50, Math.min(700, claw.x));
+            }
+            // 移动端/Touch模式：直接由 pointermove 更新，此处仅限制边界
             else {
                 claw.x = Math.max(50, Math.min(700, claw.x));
             }
@@ -1291,17 +1300,22 @@
         });
     }
 
-    // 交互 - 新模式：按住移动，松开下落
+    // 交互 - 新模式：区分 PC (mouse) 和 Mobile (touch)
     canvas.addEventListener('pointermove', (e) => {
-        if (GameConfig.controlMode === 'manual' && claw.state === 'IDLE' && !isGameOver) {
-            if (isDragging) {
-                // 获取 Canvas 在屏幕上的位置和缩放比例
+        if (claw.state === 'IDLE' && !isGameOver) {
+            // PC模式：鼠标更新目标位置（平滑跟随）
+            if (GameConfig.controlMode === 'mouse') {
                 const rect = canvas.getBoundingClientRect();
                 const scaleX = canvas.width / rect.width;
-                
-                // 计算鼠标在 Canvas 内的 X 坐标
+                inputTargetX = (e.clientX - rect.left) * scaleX;
+                // 边界限制在 update 中处理
+            }
+            // 移动端模式：拖拽时直接移动（1:1跟手）
+            else if (GameConfig.controlMode === 'touch' && isDragging) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
                 let x = (e.clientX - rect.left) * scaleX;
-                claw.x = x; // 边界限制在 update() 中统一处理
+                claw.x = x; 
             }
         }
     });
@@ -1310,12 +1324,17 @@
         if (isGameOver) return;
         if (claw.state === 'IDLE') {
             if (slots.length < getMaxSlots()) {
-                // 开始拖拽
-                isDragging = true;
-                canvas.setPointerCapture(e.pointerId); // 锁定指针
                 
-                // 立即更新一次位置，提升响应感
-                if (GameConfig.controlMode === 'manual') {
+                // PC模式 或 自动模式：点击直接下落
+                if (GameConfig.controlMode === 'mouse' || GameConfig.controlMode === 'auto') {
+                     claw.state = 'DOWN';
+                }
+                // 移动端模式：开始拖拽
+                else if (GameConfig.controlMode === 'touch') {
+                    isDragging = true;
+                    canvas.setPointerCapture(e.pointerId); // 锁定指针
+                    
+                    // 立即更新位置
                     const rect = canvas.getBoundingClientRect();
                     const scaleX = canvas.width / rect.width;
                     let x = (e.clientX - rect.left) * scaleX;
@@ -1326,7 +1345,8 @@
     });
 
     canvas.addEventListener('pointerup', (e) => {
-        if (isDragging) {
+        // 移动端模式：松手下落
+        if (GameConfig.controlMode === 'touch' && isDragging) {
             isDragging = false;
             canvas.releasePointerCapture(e.pointerId);
             
