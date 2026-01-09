@@ -455,6 +455,11 @@
                     <div class="buff-info">大力神爪</div>
                     <span class="buff-timer" id="timer-power">--</span>
                 </div>
+                <div class="buff-item" id="buff-abyss">
+                    <span class="buff-icon">🦖</span>
+                    <div class="buff-info">深渊巨爪</div>
+                    <span class="buff-timer" id="timer-abyss">--</span>
+                </div>
                 <!-- 新增：盲盒计数显示 -->
                 <div class="buff-item" style="opacity: 1; border: 1px solid #aaa;">
                     <span class="buff-icon">❓</span>
@@ -463,10 +468,11 @@
                 </div>
             </div>
             <div style="margin-top: 10px; font-size: 12px; color: #888;">
-                <p>❓ 盲盒: 结算时开启</p>
-                <p>⚡ 加速: 球速 x2 (5s)</p>
-                <p>🐢 减速: 球速 x0.5 (5s)</p>
-                <p>💪 大力: 连抓同色球 (5s)</p>
+                <p>⚡ 加速 | 🐢 减速 | 💪 连抓</p>
+                <p>🦖 巨爪: 穿透销毁 (5s)</p>
+                <p>💎 秘银: 消除+5000分</p>
+                <p>🌈 万能: 匹配任意颜色</p>
+                <p>💣 炸弹: 清除其他球</p>
             </div>
         </div>
 
@@ -520,6 +526,27 @@
                     <option value="touch" selected>移动端操作 (触摸)</option>
                 </select>
             </div>
+            
+            <div style="border-top: 1px solid #555; margin: 10px 0;"></div>
+            
+            <div class="control-group">
+                <label>Debug: 下个球 Buff</label>
+                <select id="inp-nextBuff" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
+                    <option value="none">随机 (默认)</option>
+                    <option value="mystery">❓ 盲盒</option>
+                    <option value="speed">⚡ 加速</option>
+                    <option value="slow">🐢 减速</option>
+                    <option value="power">💪 大力</option>
+                    <option value="abyss">🦖 深渊</option>
+                    <option value="mythril">💎 秘银</option>
+                    <option value="rainbow">🌈 万能</option>
+                    <option value="bomb">💣 炸弹</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Debug: 颜色数量 <span id="val-colorCount" class="value-display">6</span></label>
+                <input type="range" id="inp-colorCount" min="3" max="6" step="1" value="6">
+            </div>
         </div>
     </div>
 
@@ -567,6 +594,10 @@
                     <div class="icon">💪</div>
                     <div class="timer" id="hud-timer-power">0.0s</div>
                 </div>
+                <div class="hud-buff-item" id="hud-buff-abyss">
+                    <div class="icon">🦖</div>
+                    <div class="timer" id="hud-timer-abyss">0.0s</div>
+                </div>
             </div>
 
             <!-- 右侧：盲盒计数 -->
@@ -611,7 +642,9 @@
         trackFrequency: 0.01,
         trackShape: 'infinity',
         
-        colors: ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA'],
+        // Pastel (粉彩) 色系：柔和护眼且区分度高
+        colors: ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#E2BAFF'],
+        activeColorCount: 6, // 当前使用的颜色数量
         
         // 分数系统
         maxScore: 5000,
@@ -642,7 +675,11 @@
         MYSTERY: 'mystery', // ❓
         SPEED: 'speed',     // ⚡
         SLOW: 'slow',       // 🐢
-        POWER: 'power'      // 💪
+        POWER: 'power',     // 💪
+        ABYSS: 'abyss',     // 🦖 深渊巨爪
+        MYTHRIL: 'mythril', // 💎 秘银
+        RAINBOW: 'rainbow', // 🌈 万能
+        BOMB: 'bomb'        // 💣 炸弹
     };
 
     const canvas = document.getElementById('gameCanvas');
@@ -665,12 +702,16 @@
     let gameTimeLeft = 0;
     let currentDiffLevel = 0; // 0, 1, 2...
     let highScoreTimeLimit = parseInt(localStorage.getItem('claw_machine_highscore_time') || '0');
+    
+    // Debug 状态
+    let debugNextBuff = null;
 
     // Buff 状态 (剩余秒数)
     let activeBuffs = {
         speed: 0,
         slow: 0,
-        power: 0
+        power: 0,
+        abyss: 0
     };
     
     // 抓钩对象
@@ -800,6 +841,7 @@
         updateItem('speed', activeBuffs.speed);
         updateItem('slow', activeBuffs.slow);
         updateItem('power', activeBuffs.power);
+        updateItem('abyss', activeBuffs.abyss);
     }
 
     function updateBlindBoxUI() {
@@ -816,20 +858,67 @@
     class Ball {
         constructor() {
             this.pathIndex = 0;
-            this.color = GameConfig.colors[Math.floor(Math.random() * GameConfig.colors.length)];
+            
+            // Debug: 限制颜色数量
+            const colorLimit = Math.min(GameConfig.colors.length, GameConfig.activeColorCount);
+            this.color = GameConfig.colors[Math.floor(Math.random() * colorLimit)];
+            
             this.markedForDeletion = false;
             
-            // 随机分配 Buff
+            // 随机分配 Buff - 基于难度提升概率
             this.buff = BUFF_TYPES.NONE;
-            if (Math.random() < GameConfig.buffProbability) {
-                let types = [BUFF_TYPES.MYSTERY, BUFF_TYPES.SPEED, BUFF_TYPES.SLOW, BUFF_TYPES.POWER];
-                
-                // 限时模式不生成盲盒
+            
+            // Debug: 强制 Buff
+            if (debugNextBuff && debugNextBuff !== 'none') {
+                this.buff = debugNextBuff;
+                debugNextBuff = null; // 消费掉
+                // 重置 UI
+                const el = document.getElementById('inp-nextBuff');
+                if(el) el.value = 'none';
+            } else {
+                let prob = GameConfig.buffProbability;
+                // 难度加成: Lv0=+0, Lv1=+5%, Lv2=+10%
                 if (GameConfig.levelMode === 'time_limit') {
-                    types = [BUFF_TYPES.SPEED, BUFF_TYPES.SLOW, BUFF_TYPES.POWER];
+                    prob += currentDiffLevel * 0.05;
                 }
                 
-                this.buff = types[Math.floor(Math.random() * types.length)];
+                if (Math.random() < prob) {
+                    // 构建 Buff 池与权重
+                    let pool = [];
+                    
+                    // 普通 (权重 10)
+                    pool.push({type: BUFF_TYPES.SPEED, w: 10});
+                    pool.push({type: BUFF_TYPES.SLOW, w: 10});
+                    pool.push({type: BUFF_TYPES.POWER, w: 10});
+                    
+                    // 稀有 (权重 5)
+                    pool.push({type: BUFF_TYPES.MYTHRIL, w: 5});
+                    pool.push({type: BUFF_TYPES.RAINBOW, w: 5});
+                    pool.push({type: BUFF_TYPES.BOMB, w: 5});
+                    
+                    // 传说 (权重 2)
+                    pool.push({type: BUFF_TYPES.ABYSS, w: 2});
+                    
+                    // 模式过滤
+                    if (GameConfig.levelMode === 'time_limit') {
+                         // 限时模式: 无盲盒
+                    } else {
+                         // 普通模式: 加盲盒 (权重 8)
+                         pool.push({type: BUFF_TYPES.MYSTERY, w: 8});
+                    }
+                    
+                    // 权重随机
+                    let totalW = pool.reduce((a,b) => a+b.w, 0);
+                    let r = Math.random() * totalW;
+                    let sum = 0;
+                    for(let p of pool) {
+                        sum += p.w;
+                        if (r < sum) {
+                            this.buff = p.type;
+                            break;
+                        }
+                    }
+                }
             }
             
             this.updatePos();
@@ -870,7 +959,6 @@
             // 绘制 Buff 图标
             if (this.buff !== BUFF_TYPES.NONE) {
                 // 移除遮罩，直接绘制文字
-                ctx.fillStyle = '#fff';
                 ctx.font = 'bold 30px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -880,8 +968,19 @@
                     case BUFF_TYPES.SPEED: symbol = '⚡'; break;
                     case BUFF_TYPES.SLOW: symbol = '🐢'; break;
                     case BUFF_TYPES.POWER: symbol = '💪'; break;
+                    case BUFF_TYPES.ABYSS: symbol = '🦖'; break;
+                    case BUFF_TYPES.MYTHRIL: symbol = '💎'; break;
+                    case BUFF_TYPES.RAINBOW: symbol = '🌈'; break;
+                    case BUFF_TYPES.BOMB: symbol = '💣'; break;
                 }
-                ctx.fillText(symbol, this.x, this.y + 2); // 微调垂直位置
+                
+                // 描边以增强在浅色背景上的可见性
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                ctx.strokeText(symbol, this.x, this.y + 2);
+                
+                ctx.fillStyle = '#fff';
+                ctx.fillText(symbol, this.x, this.y + 2); 
             }
         }
     }
@@ -1042,6 +1141,7 @@
         if (activeBuffs.speed > 0) activeBuffs.speed -= dt / 1000;
         if (activeBuffs.slow > 0) activeBuffs.slow -= dt / 1000;
         if (activeBuffs.power > 0) activeBuffs.power -= dt / 1000;
+        if (activeBuffs.abyss > 0) activeBuffs.abyss -= dt / 1000;
         updateBuffUI();
 
         // 计算当前球速倍率 (仅 Slow 影响球速)
@@ -1113,6 +1213,19 @@
                     if (Math.hypot(claw.x - b.x, claw.y - b.y) < 70) {
                         // 命中！
                         
+                        // 深渊巨爪逻辑：穿透销毁
+                        if (activeBuffs.abyss > 0) {
+                            b.markedForDeletion = true;
+                            score += 500; // 销毁得分
+                            updateScoreUI();
+                            // 特效
+                            for(let i=0; i<10; i++) particles.push(new Particle(b.x, b.y, b.color));
+                            
+                            // 关键：不改变状态，让爪子继续下落！
+                            // 且不 return，允许一帧销毁多个
+                            continue; 
+                        }
+                        
                         // 检查 Power Buff
                         if (activeBuffs.power > 0) {
                             // 大力模式：抓一串
@@ -1159,66 +1272,147 @@
     function checkMatch() {
         if (slots.length === 0) return;
         
-        const lastColor = slots[slots.length - 1].color;
-        const matchingIndices = [];
-        slots.forEach((s, index) => {
-            if (s.color === lastColor) matchingIndices.push(index);
+        const lastBall = slots[slots.length - 1];
+        const threshold = getMatchThreshold();
+        
+        // 1. 统计每种颜色的索引
+        const colorMap = {}; // { '#FF0000': [0, 2], ... }
+        const rainbowIndices = [];
+        
+        slots.forEach((s, idx) => {
+            if (s.buff === BUFF_TYPES.RAINBOW) {
+                rainbowIndices.push(idx);
+            } else {
+                if (!colorMap[s.color]) colorMap[s.color] = [];
+                colorMap[s.color].push(idx);
+            }
+        });
+        
+        // 2. 确定需要消除的颜色组
+        // 规则：如果不连续也能消，那么优先匹配 lastBall 相关的颜色
+        // 如果 lastBall 是 Rainbow，则匹配所有满足条件的颜色组
+        
+        let matchedColors = new Set();
+        
+        if (lastBall.buff === BUFF_TYPES.RAINBOW) {
+            // 检查所有颜色
+            for (let color in colorMap) {
+                const count = colorMap[color].length;
+                if (count + rainbowIndices.length >= threshold) {
+                    matchedColors.add(color);
+                }
+            }
+            // 如果没有任何普通颜色满足条件，但 Rainbow 本身够多？(比如 3 个 Rainbow)
+            if (matchedColors.size === 0 && rainbowIndices.length >= threshold) {
+                // 特殊标记：消除 Rainbow 自身
+                matchedColors.add('RAINBOW_ONLY');
+            }
+        } else {
+            // lastBall 是普通色
+            const color = lastBall.color;
+            const count = (colorMap[color] ? colorMap[color].length : 0);
+            if (count + rainbowIndices.length >= threshold) {
+                matchedColors.add(color);
+            }
+        }
+        
+        if (matchedColors.size === 0) return;
+        
+        // 3. 构建消除索引列表
+        let removeIndices = new Set();
+        let usedRainbows = false;
+        
+        if (matchedColors.has('RAINBOW_ONLY')) {
+            rainbowIndices.forEach(idx => removeIndices.add(idx));
+            usedRainbows = true;
+        } else {
+            matchedColors.forEach(color => {
+                // 添加该颜色的所有球
+                if (colorMap[color]) {
+                    colorMap[color].forEach(idx => removeIndices.add(idx));
+                }
+                // 只要有任意颜色匹配，Rainbow 就被征用
+                usedRainbows = true;
+            });
+            
+            if (usedRainbows) {
+                rainbowIndices.forEach(idx => removeIndices.add(idx));
+            }
+        }
+        
+        // 4. 触发消除
+        const chain = Array.from(removeIndices);
+        
+        // 触发消除
+        let removedBuffs = [];
+        let hasBomb = false;
+        let hasMythril = false;
+        let mythrilCount = 0;
+        let baseColor = lastBall.color; // 用于粒子特效颜色
+        
+        chain.forEach(idx => {
+            // 特效
+            // 重新计算位置逻辑，这里简化处理，只确保大概位置
+            // 为了准确，应该根据 idx 算位置，但这里暂用中心点代替或简化
+            const maxSlots = getMaxSlots();
+            const spacing = (maxSlots > 5) ? 80 : 125;
+            const startX = (maxSlots > 5) ? 35 : 75;
+            const bx = startX + (idx % maxSlots) * spacing;
+            const by = 180 + Math.floor(idx / maxSlots) * 110; 
+            
+            for(let i=0; i<20; i++) particles.push(new Particle(bx, by, slots[idx].color));
+            
+            const buff = slots[idx].buff;
+            if (buff && buff !== BUFF_TYPES.NONE) {
+                removedBuffs.push(buff);
+                if (buff === BUFF_TYPES.BOMB) hasBomb = true;
+                if (buff === BUFF_TYPES.MYTHRIL) { hasMythril = true; mythrilCount++; }
+            }
         });
 
-        // 使用配置的消除阈值
-        if (matchingIndices.length >= getMatchThreshold()) {
-            // 触发消除
-            let removedBuffs = [];
-            
-            // 倒序删除以防索引错乱，或者直接filter
-            // 但我们需要知道哪些球被消除了来触发Buff
-            matchingIndices.forEach(idx => {
-                // 特效
-                // 注意：因为slots可能超过5个，UI绘制位置需要动态计算，这里特效也动态计算
-                // 重新计算位置逻辑需要与 draw() 保持一致，这里简化处理，只确保大概位置
-                const maxSlots = getMaxSlots();
-                const spacing = (maxSlots > 5) ? 80 : 125;
-                const startX = (maxSlots > 5) ? 35 : 75;
-                
-                const bx = startX + (idx % maxSlots) * spacing;
-                const by = 80 + Math.floor(idx / maxSlots) * 110; 
-                for(let i=0; i<20; i++) particles.push(new Particle(bx, by, lastColor));
-                
-                // 收集Buff
-                if (slots[idx].buff && slots[idx].buff !== BUFF_TYPES.NONE) {
-                    removedBuffs.push(slots[idx].buff);
-                }
+        // 真正移除 (利用 filter)
+        const removeSet = new Set(chain);
+        slots = slots.filter((_, i) => !removeSet.has(i));
+        
+        // 加分
+        let basePoints = 100 * chain.length;
+        if (hasMythril) basePoints += 5000 * mythrilCount; // 秘银加分
+        
+        score += basePoints;
+        
+        // 炸弹逻辑：清空剩余槽位
+        if (hasBomb) {
+            // 特效
+            slots.forEach(() => {
+                for(let i=0; i<10; i++) particles.push(new Particle(375, 250, '#000'));
             });
-
-            // 真正移除
-            slots = slots.filter(s => s.color !== lastColor);
-            
-            // 加分
-            score += 100 * matchingIndices.length;
-            
-            // 限时模式难度检测
-            if (GameConfig.levelMode === 'time_limit') {
-                checkDifficultyUp();
-            }
-            
-            updateScoreUI();
-
-            // 激活 Buff
-            removedBuffs.forEach(buff => {
-                if (buff === BUFF_TYPES.MYSTERY) {
-                    blindBoxCount++;
-                    updateBlindBoxUI();
-                } else if (buff === BUFF_TYPES.SPEED) {
-                    activeBuffs.speed = GameConfig.buffDuration;
-                    activeBuffs.slow = 0; // 互斥
-                } else if (buff === BUFF_TYPES.SLOW) {
-                    activeBuffs.slow = GameConfig.buffDuration;
-                    activeBuffs.speed = 0; // 互斥
-                } else if (buff === BUFF_TYPES.POWER) {
-                    activeBuffs.power = GameConfig.buffDuration;
-                }
-            });
+            slots = []; // 清空！
         }
+
+        // 限时模式难度检测
+        if (GameConfig.levelMode === 'time_limit') {
+            checkDifficultyUp();
+        }
+        
+        updateScoreUI();
+
+        // 激活 Buff
+        removedBuffs.forEach(buff => {
+            if (buff === BUFF_TYPES.MYSTERY) {
+                blindBoxCount++;
+                updateBlindBoxUI();
+            } else if (buff === BUFF_TYPES.SPEED) {
+                activeBuffs.speed = GameConfig.buffDuration;
+                activeBuffs.slow = 0; // 互斥
+            } else if (buff === BUFF_TYPES.SLOW) {
+                activeBuffs.slow = GameConfig.buffDuration;
+                activeBuffs.speed = 0; // 互斥
+            } else if (buff === BUFF_TYPES.POWER) {
+                activeBuffs.power = GameConfig.buffDuration;
+            } else if (buff === BUFF_TYPES.ABYSS) {
+                activeBuffs.abyss = GameConfig.buffDuration;
+            }
+        });
     }
 
     function draw() {
@@ -1278,15 +1472,27 @@
                 
                 // Buff 标记
                 if (slots[i].buff && slots[i].buff !== 'none') {
-                    ctx.fillStyle = '#fff';
                     ctx.font = (maxSlots>5 ? '16px' : '20px') + ' Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     let s = '';
-                    if(slots[i].buff === 'mystery') s='❓';
-                    if(slots[i].buff === 'speed') s='⚡';
-                    if(slots[i].buff === 'slow') s='🐢';
-                    if(slots[i].buff === 'power') s='💪';
+                    switch(slots[i].buff) {
+                        case BUFF_TYPES.MYSTERY: s='❓'; break;
+                        case BUFF_TYPES.SPEED: s='⚡'; break;
+                        case BUFF_TYPES.SLOW: s='🐢'; break;
+                        case BUFF_TYPES.POWER: s='💪'; break;
+                        case BUFF_TYPES.ABYSS: s='🦖'; break;
+                        case BUFF_TYPES.MYTHRIL: s='💎'; break;
+                        case BUFF_TYPES.RAINBOW: s='🌈'; break;
+                        case BUFF_TYPES.BOMB: s='💣'; break;
+                    }
+                    
+                    // 描边
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                    ctx.strokeText(s, cx, cy);
+                    
+                    ctx.fillStyle = '#fff';
                     ctx.fillText(s, cx, cy);
                 }
             }
@@ -1505,7 +1711,7 @@
              resetGame();
         });
         
-        // 绑定新模式控件 (变更时重置游戏)
+            // 绑定新模式控件 (变更时重置游戏)
         ['matchMode', 'levelMode', 'controlMode'].forEach(key => {
             document.getElementById('inp-' + key).addEventListener('change', (e) => {
                 GameConfig[key] = e.target.value;
@@ -1527,6 +1733,19 @@
                 
                 resetGame();
             });
+        });
+        
+        // Debug 增强绑定
+        document.getElementById('inp-nextBuff').addEventListener('change', (e) => {
+            debugNextBuff = e.target.value;
+        });
+        
+        const colInp = document.getElementById('inp-colorCount');
+        const colVal = document.getElementById('val-colorCount');
+        colInp.addEventListener('input', (e) => {
+            colVal.innerText = e.target.value;
+            GameConfig.activeColorCount = parseInt(e.target.value);
+            // 这里不需要重置游戏，只会影响新生成的球
         });
     }
 
