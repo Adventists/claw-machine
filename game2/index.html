@@ -249,7 +249,76 @@
             flex-direction: column;
             gap: 8px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            /* margin-bottom 移除 */
+            transition: all 0.3s;
+        }
+        
+        /* 倒计时样式 */
+        #hud-timer-container {
+            display: none; /* 默认隐藏 */
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            margin-top: -4px;
+        }
+        #hud-timer-val {
+            font-family: monospace;
+            color: #00f2fe;
+        }
+        #hud-timer-val.urgent {
+            color: #ff4444;
+            animation: pulse-red 0.5s infinite;
+        }
+
+        /* 难度升级弹窗 */
+        #difficulty-toast {
+            position: absolute;
+            top: 40%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: linear-gradient(90deg, #ff9a9e 0%, #fecfef 100%);
+            padding: 15px 30px;
+            border-radius: 50px;
+            color: #fff;
+            font-size: 24px;
+            font-weight: 900;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            box-shadow: 0 0 20px rgba(255, 154, 158, 0.6);
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+        #difficulty-toast.show {
+            animation: toast-pop 2s forwards;
+        }
+
+        @keyframes toast-pop {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            10% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            20% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1); opacity: 0; }
+        }
+        
+        @keyframes pulse-red {
+            0% { transform: scale(1); text-shadow: 0 0 5px #ff4444; }
+            50% { transform: scale(1.2); text-shadow: 0 0 20px #ff0000; }
+            100% { transform: scale(1); text-shadow: 0 0 5px #ff4444; }
+        }
+
+        /* 火焰特效 */
+        .hud-progress-track.on-fire {
+            box-shadow: 0 0 15px #ff5500, 0 0 30px #ffcc00;
+            border: 1px solid #ffcc00;
+        }
+        .hud-progress-fill.on-fire {
+            background: linear-gradient(90deg, #ff5500, #ffcc00, #ffff00);
+            animation: fire-flow 1s linear infinite;
+        }
+        @keyframes fire-flow {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
         }
         
         .hud-score-container {
@@ -440,6 +509,7 @@
                 <select id="inp-levelMode" style="width:100%; margin-top:2px; padding:4px; border-radius:4px; border:none; background:#222; color:white;">
                     <option value="random">随机生成</option>
                     <option value="fixed" selected>固定关卡</option>
+                    <option value="time_limit">⏱️ 限时挑战</option>
                 </select>
             </div>
             <div class="control-group">
@@ -461,15 +531,27 @@
         <div id="game-hud">
             <!-- 顶部栏：分数与进度 -->
             <div class="hud-top-bar">
+                <!-- 倒计时 (限时模式显示) -->
+                <div id="hud-timer-container">
+                    ⏳ <span id="hud-timer-val">90.0</span>s
+                </div>
+
                 <div class="hud-score-container">
                     <span class="hud-score-label">SCORE</span>
                     <span id="hud-score-text">0</span>
                 </div>
-                <div class="hud-progress-track">
+                <div class="hud-progress-track" id="hud-progress-track">
                     <div class="hud-progress-fill" id="hud-progress-fill"></div>
-                    <div class="hud-progress-marker" style="left: 40%"></div> <!-- 通关线 -->
+                    <!-- 进度条标记：默认模式 -->
+                    <div class="hud-progress-marker marker-default" style="left: 40%"></div>
+                    <!-- 进度条标记：限时模式 (动态添加或预设隐藏) -->
+                    <div class="hud-progress-marker marker-time" style="left: 20%; display:none; background:#ffff00;"></div>
+                    <div class="hud-progress-marker marker-time" style="left: 60%; display:none; background:#ff5500;"></div>
                 </div>
             </div>
+
+            <!-- 难度升级提示 -->
+            <div id="difficulty-toast">难度升级! 速度UP!</div>
 
             <!-- 左侧：Buff 状态栏 -->
             <div class="hud-buff-list">
@@ -542,9 +624,13 @@
         // 新增模式配置
         matchMode: 'match3',   // match2 | match3
         slotLimit: 9,          // 5 | 7-9
-        levelMode: 'fixed',   // random | fixed
+        levelMode: 'fixed',   // random | fixed | time_limit
         controlMode: 'touch',   // auto | mouse | touch
-        fixedBallCount: 30     // 固定关卡初始球数
+        fixedBallCount: 30,     // 固定关卡初始球数
+        
+        // 限时模式参数
+        timeLimit: 90,          // 90秒
+        difficultyLevels: [1000, 3000] // 难度升级分数线
     };
 
     // 辅助获取当前模式参数
@@ -574,6 +660,11 @@
     let blindBoxCount = 0;
     let isDragging = false; // 新增：拖拽状态
     let inputTargetX = 375; // 新增：PC鼠标目标位置(用于平滑跟随)
+    
+    // 限时模式状态
+    let gameTimeLeft = 0;
+    let currentDiffLevel = 0; // 0, 1, 2...
+    let highScoreTimeLimit = parseInt(localStorage.getItem('claw_machine_highscore_time') || '0');
 
     // Buff 状态 (剩余秒数)
     let activeBuffs = {
@@ -592,9 +683,39 @@
     // --- UI 控制 ---
     function updateScoreUI() {
         // 更新左侧面板 (旧)
-        document.getElementById('score-text').innerText = score;
-        const pct = Math.min(100, (score / GameConfig.maxScore) * 100);
-        document.getElementById('progress-fill').style.width = pct + '%';
+        const scoreEl = document.getElementById('score-text');
+        if (scoreEl) scoreEl.innerText = score;
+        
+        let pct = 0;
+        
+        if (GameConfig.levelMode === 'time_limit') {
+            // 限时模式进度条逻辑
+            // 基础 5000 分满
+            pct = Math.min(100, (score / 5000) * 100);
+            
+            // 无限模式火焰特效
+            const track = document.getElementById('hud-progress-track');
+            const fill = document.getElementById('hud-progress-fill');
+            
+            if (score >= 5000) {
+                if (track) track.classList.add('on-fire');
+                if (fill) fill.classList.add('on-fire');
+            } else {
+                if (track) track.classList.remove('on-fire');
+                if (fill) fill.classList.remove('on-fire');
+            }
+        } else {
+            // 普通模式
+            pct = Math.min(100, (score / GameConfig.maxScore) * 100);
+            // 移除特效
+             const track = document.getElementById('hud-progress-track');
+             const fill = document.getElementById('hud-progress-fill');
+             if (track) track.classList.remove('on-fire');
+             if (fill) fill.classList.remove('on-fire');
+        }
+
+        const progFill = document.getElementById('progress-fill');
+        if (progFill) progFill.style.width = pct + '%';
 
         // 更新游戏内 HUD (新)
         const hudScore = document.getElementById('hud-score-text');
@@ -603,10 +724,50 @@
         const hudFill = document.getElementById('hud-progress-fill');
         if (hudFill) hudFill.style.width = pct + '%';
         
-        // 实时检查满级
-        if (score >= GameConfig.maxScore && !isGameOver) {
+        // 实时检查满级 (仅非限时模式)
+        if (GameConfig.levelMode !== 'time_limit' && score >= GameConfig.maxScore && !isGameOver) {
             gameOver(true, 'FULL');
         }
+    }
+
+    // 新增：难度升级检测
+    function checkDifficultyUp() {
+        // Levels: [1000, 3000]
+        const levels = GameConfig.difficultyLevels;
+        
+        // 检查是否刚刚跨过阈值
+        // 简单逻辑：根据当前分数判断应该在哪个 Level
+        let newLevel = 0;
+        if (score >= levels[1]) newLevel = 2;
+        else if (score >= levels[0]) newLevel = 1;
+        
+        if (newLevel > currentDiffLevel) {
+            currentDiffLevel = newLevel;
+            // 触发难度升级
+            adjustDifficulty(newLevel);
+            showDifficultyToast(newLevel);
+        }
+    }
+    
+    function adjustDifficulty(level) {
+        // 根据等级加速
+        if (level === 1) {
+             GameConfig.ballSpeed = 0.8; // 0.5 -> 0.8
+             GameConfig.ballSpawnInterval = 400; // 500 -> 400
+        } else if (level === 2) {
+             GameConfig.ballSpeed = 1.2;
+             GameConfig.ballSpawnInterval = 300;
+        }
+    }
+    
+    function showDifficultyToast(level) {
+        const toast = document.getElementById('difficulty-toast');
+        const texts = ["", "难度升级! LV.2", "难度升级! MAX!"];
+        toast.innerText = texts[level] || "难度升级!";
+        
+        toast.classList.remove('show');
+        void toast.offsetWidth; // trigger reflow
+        toast.classList.add('show');
     }
 
     function updateBuffUI() {
@@ -661,7 +822,13 @@
             // 随机分配 Buff
             this.buff = BUFF_TYPES.NONE;
             if (Math.random() < GameConfig.buffProbability) {
-                const types = [BUFF_TYPES.MYSTERY, BUFF_TYPES.SPEED, BUFF_TYPES.SLOW, BUFF_TYPES.POWER];
+                let types = [BUFF_TYPES.MYSTERY, BUFF_TYPES.SPEED, BUFF_TYPES.SLOW, BUFF_TYPES.POWER];
+                
+                // 限时模式不生成盲盒
+                if (GameConfig.levelMode === 'time_limit') {
+                    types = [BUFF_TYPES.SPEED, BUFF_TYPES.SLOW, BUFF_TYPES.POWER];
+                }
+                
                 this.buff = types[Math.floor(Math.random() * types.length)];
             }
             
@@ -853,6 +1020,24 @@
     function update(dt) {
         if (isGameOver) return;
 
+        // --- 限时模式逻辑 ---
+        if (GameConfig.levelMode === 'time_limit') {
+            gameTimeLeft -= dt / 1000;
+            if (gameTimeLeft <= 0) {
+                gameTimeLeft = 0;
+                gameOver(true, 'TIME_UP'); // 时间到，正常结算
+                return;
+            }
+            
+            // 倒计时 UI
+            const timerEl = document.getElementById('hud-timer-val');
+            if (timerEl) {
+                timerEl.innerText = gameTimeLeft.toFixed(1);
+                if (gameTimeLeft < 10) timerEl.classList.add('urgent');
+                else timerEl.classList.remove('urgent');
+            }
+        }
+
         // 1. 更新 Buff 计时器
         if (activeBuffs.speed > 0) activeBuffs.speed -= dt / 1000;
         if (activeBuffs.slow > 0) activeBuffs.slow -= dt / 1000;
@@ -867,8 +1052,8 @@
 
         if (activeBuffs.slow > 0) ballSpeedMult *= 0.5;
 
-        // 2. 生成球 (仅在随机模式下)
-        if (GameConfig.levelMode === 'random') {
+        // 2. 生成球 (随机模式 或 限时模式)
+        if (GameConfig.levelMode === 'random' || GameConfig.levelMode === 'time_limit') {
             ballTimer += dt;
             if (ballTimer > GameConfig.ballSpawnInterval) {
                 balls.push(new Ball());
@@ -1010,6 +1195,12 @@
             
             // 加分
             score += 100 * matchingIndices.length;
+            
+            // 限时模式难度检测
+            if (GameConfig.levelMode === 'time_limit') {
+                checkDifficultyUp();
+            }
+            
             updateScoreUI();
 
             // 激活 Buff
@@ -1148,6 +1339,24 @@
         
         modal.style.display = 'flex';
         
+        // 限时模式特殊结算
+        if (GameConfig.levelMode === 'time_limit') {
+            title.innerText = (reason === 'TIME_UP') ? "⏰ 时间到！" : "💔 槽位已满";
+            title.style.color = (reason === 'TIME_UP') ? "#ffd700" : "#ff4444";
+            
+            // 更新最高分
+            if (score > highScoreTimeLimit) {
+                highScoreTimeLimit = score;
+                localStorage.setItem('claw_machine_highscore_time', highScoreTimeLimit);
+                desc.innerHTML = `最终得分: <span style="color:#fff;font-size:32px">${score}</span><br><span style="color:#ff9a9e;font-size:16px">🔥 新纪录！(旧: ${highScoreTimeLimit})</span>`;
+            } else {
+                desc.innerHTML = `最终得分: ${score}<br><span style="color:#aaa;font-size:16px">历史最高: ${highScoreTimeLimit}</span>`;
+            }
+            
+            boxArea.style.display = 'none'; // 隐藏盲盒
+            return;
+        }
+        
         if (success) {
             title.innerText = reason === 'FULL' ? "🎉 完美通关！" : "✅ 挑战成功！";
             title.style.color = "#00f2fe";
@@ -1215,7 +1424,28 @@
         claw.state = 'IDLE';
         claw.heldBalls = [];
         
+        // 限时模式重置
+        if (GameConfig.levelMode === 'time_limit') {
+            gameTimeLeft = GameConfig.timeLimit;
+            currentDiffLevel = 0;
+            GameConfig.ballSpeed = 0.5; // 重置难度
+            GameConfig.ballSpawnInterval = 500;
+            
+            // UI 切换
+            document.getElementById('hud-timer-container').style.display = 'block';
+            document.querySelector('.hud-blind-box').style.display = 'none';
+            document.querySelectorAll('.marker-default').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.marker-time').forEach(el => el.style.display = 'block');
+        } else {
+            // 普通模式重置
+            document.getElementById('hud-timer-container').style.display = 'none';
+            document.querySelector('.hud-blind-box').style.display = 'flex';
+            document.querySelectorAll('.marker-default').forEach(el => el.style.display = 'block');
+            document.querySelectorAll('.marker-time').forEach(el => el.style.display = 'none');
+        }
+        
         document.getElementById('game-over-modal').style.display = 'none';
+        
         updateScoreUI();
         updateBuffUI();
         updateBlindBoxUI();
