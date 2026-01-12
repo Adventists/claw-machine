@@ -488,11 +488,12 @@
                     <option value="infinity_broken">无限 (横) - 有断点</option>
                     <option value="infinity_vertical">无限 (竖) - 8字形</option>
                     <option value="heart">爱心</option>
+                    <option value="test1_s">测试1-S</option>
                 </select>
             </div>
             <div class="control-group">
                 <label>基础球速 <span id="val-speed" class="value-display">0.5</span></label>
-                <input type="range" id="inp-speed" min="0.5" max="5" step="0.1" value="0.5">
+                <input type="range" id="inp-speed" min="0.1" max="5" step="0.1" value="0.5">
             </div>
             <div class="control-group">
                 <label>生成间隔 <span id="val-spawn" class="value-display">500</span></label>
@@ -1091,6 +1092,25 @@
             for (let t = 0; t < Math.PI * 2; t += 0.02) {
                 let x = cx + scale * (16 * Math.pow(Math.sin(t), 3));
                 let y = cy - scale * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+                pathPoints.push({x, y});
+            }
+        }
+        else if (shape === 'test1_s') {
+            // 测试1-S: 垂直 S 形 (仿照图示: 右->左->右->左)
+            // 抓钩在 Y=350，槽位在 Y=180~300。起点设为 450 以避开抓钩
+            const startY = 450;
+            const endY = 1250;
+            const amp = 300; // 左右幅度
+            
+            // t 映射到 [0, 3PI] 以覆盖 1.5 个余弦周期 (High -> Low -> High -> Low)
+            // cos(0)=1(右), cos(PI)=-1(左), cos(2PI)=1(右), cos(3PI)=-1(左)
+            const totalPhases = 3 * Math.PI;
+            
+            for (let y = startY; y <= endY; y += 4) {
+                let progress = (y - startY) / (endY - startY);
+                let t = progress * totalPhases;
+                
+                let x = cx + amp * Math.cos(t);
                 pathPoints.push({x, y});
             }
         }
