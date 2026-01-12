@@ -485,6 +485,8 @@
                     <option value="spiral">螺旋 (挑战)</option>
                     <option value="circle">大回环</option>
                     <option value="infinity" selected>无限 (∞)</option>
+                    <option value="infinity_broken">无限 (横) - 有断点</option>
+                    <option value="infinity_vertical">无限 (竖) - 8字形</option>
                     <option value="heart">爱心</option>
                 </select>
             </div>
@@ -1045,6 +1047,41 @@
                 const denom = 1 + Math.sin(t) * Math.sin(t);
                 let x = cx + (a * Math.cos(t)) / denom;
                 let y = cy + (a * Math.sin(t) * Math.cos(t)) / denom;
+                pathPoints.push({x, y});
+            }
+        }
+        else if (shape === 'infinity_broken') {
+            const a = 300;
+            // 修正：从交点右侧上边(右上)开始，到交点左侧下边(左下)结束
+            // 周期分析：
+            // 1.5PI -> 2PI: 右上区域 (从中心向右端) -> 起点设在这里
+            // 0 -> 0.5PI: 右下区域
+            // 0.5PI -> PI: 左上区域
+            // PI -> 1.5PI: 左下区域 (从左端向中心) -> 终点设在这里
+            // 因此 t 的范围是从 1.5PI 到 3.5PI
+            
+            const startT = 1.5 * Math.PI + 0.15; // +0.15 偏离中心，位于右上出生
+            const endT = 3.5 * Math.PI - 0.15;   // -0.15 偏离中心，位于左下消失
+            
+            for (let t = startT; t <= endT; t += 0.02) {
+                const denom = 1 + Math.sin(t) * Math.sin(t);
+                let x = cx + (a * Math.cos(t)) / denom;
+                let y = cy + (a * Math.sin(t) * Math.cos(t)) / denom;
+                pathPoints.push({x, y});
+            }
+        }
+        else if (shape === 'infinity_vertical') {
+            const a = 300;
+            cy = 700; // 稍微上移以适应垂直高度
+            for (let t = 0; t < Math.PI * 2; t += 0.02) {
+                const denom = 1 + Math.sin(t) * Math.sin(t);
+                // 旋转 90 度：x' = -y, y' = x
+                // 原 x = (a cos t) / D
+                // 原 y = (a sin t cos t) / D
+                // 新 x = cx + (a sin t cos t) / D
+                // 新 y = cy + (a cos t) / D
+                let x = cx + (a * Math.sin(t) * Math.cos(t)) / denom;
+                let y = cy + (a * Math.cos(t)) / denom;
                 pathPoints.push({x, y});
             }
         }
